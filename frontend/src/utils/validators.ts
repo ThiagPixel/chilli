@@ -11,7 +11,8 @@ export const ROOM_NAME_MAX = 100;
 export const ROOM_DESC_MAX = 2000;
 export const MESSAGE_MAX = 2000;
 export const CODE_LENGTH = 6;
-export const CODE_PATTERN = /^[A-HJ-NP-Z2-9]{6}$/; // mesmo alfabeto do backend
+// Backend gera códigos de 6–8 chars (default 8). Aceitamos ambos no cliente.
+export const CODE_PATTERN = /^[A-HJ-NP-Z2-9]{6,8}$/;
 
 export function isValidName(name: string): boolean {
   const trimmed = name.trim();

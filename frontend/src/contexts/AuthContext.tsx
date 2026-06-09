@@ -3,16 +3,17 @@
  *
  * Responsabilidades:
  *  - Gerar/persistir um `deviceId` (localStorage).
- *  - Chamar `authService.anonymous` no primeiro uso e armazenar o `User`.
+ *  - No boot, tentar restaurar sessão via `authService.me()`
+ *    (cookie httpOnly `chilli_token` sobe automaticamente).
+ *  - `signIn(name, avatarUrl)` chama `authService.anonymous` e
+ *    persiste nome/avatar localmente.
  *  - Expor `{ user, isLoading, error, signIn, signOut }`.
- *
- * Stub: a chamada real ao backend entra na fase 5. O contexto já está
- * tipado e expõe a forma final da API.
  */
-import { createContext, useCallback, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { User } from '@/types';
 import { newDeviceId, storage } from '@/utils';
 import { authService } from '@/services';
+import { ApiError } from '@/services/api';
 
 const DEVICE_ID_KEY = 'deviceId';
 const USER_NAME_KEY = 'userName';
@@ -35,7 +36,7 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   // deviceId é gerado uma vez e persistido.
@@ -45,6 +46,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const next = newDeviceId();
     storage.set(DEVICE_ID_KEY, next);
     return next;
+  }, []);
+
+  // No boot, tenta restaurar sessão via cookie.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const me = await authService.me();
+        if (!cancelled) setUser(me);
+      } catch (e) {
+        // 401 esperado para primeira visita; qualquer outro erro é silencioso.
+        if (e instanceof ApiError && e.status === 401) {
+          // ok — sem sessão
+        } else if (!cancelled) {
+          const message = e instanceof Error ? e.message : 'Falha ao restaurar sessão';
+          setError(message);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const signIn = useCallback(
@@ -63,6 +88,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Falha ao autenticar';
         setError(message);
+        throw e;
       } finally {
         setIsLoading(false);
       }
@@ -71,6 +97,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 
   const signOut = useCallback(() => {
+    // Backend ainda não tem endpoint de logout (MVP). Limpa estado local.
     setUser(null);
     storage.remove(USER_NAME_KEY);
     storage.remove(USER_AVATAR_KEY);

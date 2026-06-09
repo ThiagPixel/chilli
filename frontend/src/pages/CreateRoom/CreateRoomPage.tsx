@@ -6,9 +6,6 @@
  *  2. Nome da mesa + descrição.
  *  3. Submit → `authService.anonymous` (se ainda não logado) +
  *     `roomService.create` → redireciona para `/r/<code>`.
- *
- * Stub: os handlers disparam um toast "em breve" e mantêm o
- * form preenchido. As chamadas reais entram na fase 5.
  */
 import { useState, type FormEvent } from 'react';
 import {
@@ -30,6 +27,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 import { isValidName, isValidRoomName, NAME_MAX, ROOM_NAME_MAX, ROOM_DESC_MAX } from '@/utils';
+import { roomService } from '@/services';
 import { PATHS } from '@/routes/paths';
 
 const AVATAR_PRESETS: ReadonlyArray<string> = [
@@ -50,6 +48,7 @@ export function CreateRoomPage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl ?? null);
   const [roomName, setRoomName] = useState<string>('');
   const [description, setDescription] = useState<string>('');
+  const [submitting, setSubmitting] = useState<boolean>(false);
 
   const trimmedName = masterName.trim();
   const trimmedRoom = roomName.trim();
@@ -57,25 +56,26 @@ export function CreateRoomPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!isValid) {
-      toast.error('Preencha seu nome e o nome da mesa.');
-      return;
-    }
+    if (!isValid || submitting) return;
 
+    setSubmitting(true);
     try {
       // 1. Garante que existe um usuário autenticado.
       if (!user) {
         await signIn(trimmedName, avatarUrl);
       }
-      // 2. Cria a sala (stub).
-      //    await roomService.create({ name: trimmedRoom, description: description.trim() || null });
-      // 3. Redireciona (stub: gera um código fake para a demo).
-      const fakeCode = 'K7H2F9';
-      toast.success('Sala criada!');
-      navigate(PATHS.room(fakeCode));
+      // 2. Cria a sala no backend.
+      const room = await roomService.create({
+        name: trimmedRoom,
+        ...(description.trim() ? { description: description.trim() } : {}),
+      });
+      toast.success(`Mesa criada: ${room.code}`);
+      navigate(PATHS.room(room.code));
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Falha ao criar a mesa.';
       toast.error(msg);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -212,10 +212,10 @@ export function CreateRoomPage() {
           color="primary"
           startIcon={<AddIcon />}
           endIcon={<ArrowForwardIcon />}
-          disabled={!isValid || isLoading === true}
+          disabled={!isValid || isLoading === true || submitting}
           fullWidth
         >
-          Criar e entrar
+          {submitting ? 'Criando…' : 'Criar e entrar'}
         </Button>
       </Box>
     </Stack>

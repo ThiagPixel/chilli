@@ -3,11 +3,9 @@
  *
  * Fluxo:
  *  1. Pedir nome do jogador (e avatar opcional).
- *  2. Pedir código de 6 caracteres (input monoespaçado, uppercase).
+ *  2. Pedir código de 6 caracteres.
  *  3. Submit → `authService.anonymous` (se ainda não logado) +
  *     `roomService.join` → redireciona para `/r/<code>`.
- *
- * Stub: idem ao CreateRoom — handlers disparam toast.
  */
 import { useState, type FormEvent } from 'react';
 import {
@@ -34,6 +32,7 @@ import {
   isValidName,
   isValidRoomCode,
 } from '@/utils';
+import { roomService } from '@/services';
 import { PATHS } from '@/routes/paths';
 
 const AVATAR_PRESETS: ReadonlyArray<string> = [
@@ -55,28 +54,32 @@ export function JoinRoomPage() {
   const [name, setName] = useState<string>(user?.name ?? '');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl ?? null);
   const [code, setCode] = useState<string>(codeFromUrl.toUpperCase());
+  const [submitting, setSubmitting] = useState<boolean>(false);
 
   const trimmedName = name.trim();
   const trimmedCode = code.trim().toUpperCase();
   const codeValid = CODE_PATTERN.test(trimmedCode) || trimmedCode.length === 0;
-  const codeComplete = trimmedCode.length === CODE_LENGTH;
+  const codeComplete = trimmedCode.length >= CODE_LENGTH;
   const isValid = isValidName(trimmedName) && isValidRoomCode(trimmedCode);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!isValid) {
-      toast.error('Verifique seu nome e o código da mesa.');
-      return;
-    }
+    if (!isValid || submitting) return;
+    setSubmitting(true);
     try {
+      // 1. Garante que existe um usuário autenticado.
       if (!user) {
         await signIn(trimmedName, avatarUrl);
       }
-      toast.success(`Entrando em ${trimmedCode}…`);
-      navigate(PATHS.room(trimmedCode));
+      // 2. Entra na sala.
+      const { room } = await roomService.join(trimmedCode);
+      toast.success(`Entrou em ${room.code}`);
+      navigate(PATHS.room(room.code));
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Falha ao entrar na mesa.';
       toast.error(msg);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -183,7 +186,7 @@ export function JoinRoomPage() {
         placeholder="K7H2F9"
         required
         inputProps={{
-          maxLength: CODE_LENGTH,
+          maxLength: 8,
           'aria-label': 'Código da mesa',
           style: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', letterSpacing: 4, textTransform: 'uppercase' },
         }}
@@ -196,7 +199,7 @@ export function JoinRoomPage() {
         }}
         helperText={
           !codeComplete
-            ? `Faltam ${CODE_LENGTH - trimmedCode.length} caracteres`
+            ? `Faltam ${CODE_LENGTH - trimmedCode.length} caracteres (mínimo ${CODE_LENGTH})`
             : !codeValid
               ? 'Use apenas letras e números (sem 0, O, 1, I, L)'
               : 'Tudo certo'
@@ -212,10 +215,10 @@ export function JoinRoomPage() {
           color="primary"
           startIcon={<LoginIcon />}
           endIcon={<ArrowForwardIcon />}
-          disabled={!isValid || isLoading === true}
+          disabled={!isValid || isLoading === true || submitting}
           fullWidth
         >
-          Entrar
+          {submitting ? 'Entrando…' : 'Entrar'}
         </Button>
       </Box>
     </Stack>
