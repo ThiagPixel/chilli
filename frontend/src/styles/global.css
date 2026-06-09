@@ -1,0 +1,44 @@
+/**
+ * Estilos globais.
+ * Mantidos minúsculos — a maior parte da estilização está no tema MUI.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Safe areas no iOS (notch / home indicator) */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Animação de fade-in para transições de página (vite-plugin-pwa não cuida disso) */
+@keyframes chilli-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-enter {
+  animation: chilli-fade-in 160ms ease-out;
+}

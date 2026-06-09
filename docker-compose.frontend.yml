@@ -1,0 +1,29 @@
+# ============================================================================
+# Chilli — dev stack estendido (com frontend em container).
+#
+# Como usar:
+#   docker compose -f docker-compose.yml -f docker-compose.frontend.yml up
+#
+# O frontend roda com Vite (HMR) e encaminha /api e /socket.io para
+# o backend. Acesse http://localhost:5173.
+# ============================================================================
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: chilli-frontend
+    environment:
+      VITE_API_URL: ""
+      VITE_SOCKET_URL: ""
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+    depends_on:
+      - backend
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

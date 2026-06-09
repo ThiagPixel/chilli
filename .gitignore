@@ -1,0 +1,68 @@
+# =========================================================================
+# Chilli — root .gitignore
+# =========================================================================
+
+# Dependências
+node_modules/
+.pnp/
+.pnp.js
+.yarn/
+
+# Build artifacts
+dist/
+build/
+.vite/
+*.tsbuildinfo
+.turbo/
+
+# Ambientes / segredos
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+*.pem
+secrets/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.swp
+*.swo
+
+# Testes / coverage
+coverage/
+.nyc_output/
+
+# Uploads locais (NÃO versionar conteúdo de usuários)
+uploads/
+backend/uploads/
+infra/nginx/data/
+infra/nginx/logs/
+
+# Docker volumes locais
+.docker/
+data/
+pgdata/
+
+# PWA service worker gerado no build
+frontend/public/sw.js
+frontend/public/sw.js.map
+frontend/public/workbox-*.js
+frontend/public/workbox-*.js.map
+
+# Playwright
+frontend/playwright-report/
+frontend/test-results/
+.playwright-mcp/

@@ -1,0 +1,50 @@
+# Chilli — dev stack.
+# Sobe Postgres + backend com hot-reload. Nginx e produção ficam
+# para o passo 6 (deploy).
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: chilli-db
+    environment:
+      POSTGRES_USER: chilli
+      POSTGRES_PASSWORD: chilli
+      POSTGRES_DB: chilli
+    ports:
+      - "5432:5432"
+    volumes:
+      - chilli-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chilli -d chilli"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: chilli-backend
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      LOG_LEVEL: info
+      DATABASE_URL: postgres://chilli:chilli@db:5432/chilli
+      # IMPORTANTE: troque em produção por um valor aleatório >= 32 chars
+      JWT_SECRET: dev-secret-must-be-at-least-32-chars-long-xxx
+      JWT_EXPIRES_IN: 30d
+      UPLOAD_DIR: /app/uploads
+      MAX_UPLOAD_MB: 10
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend/src:/app/src
+      - chilli-uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["npm", "run", "dev"]
+
+volumes:
+  chilli-pgdata:
+  chilli-uploads:
