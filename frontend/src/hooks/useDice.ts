@@ -1,24 +1,47 @@
 /**
  * useDice — rolagens em tempo real.
  *
- * Stub: subscreve a `dice:result` e expõe `roll(expression)`.
+ * - `rolls`: snapshot da store (atualizada por `dice:result` e
+ *   hidratada por `room:state`).
+ * - `roll(expression)`: emite `dice:roll` no socket; resolve com a
+ *   rolagem persistida (ou `null` em erro).
  */
 import { useCallback } from 'react';
-import { useSocketEvent } from './useSocket';
+import { useSocketContext } from '@/contexts/SocketContext';
 import { useDiceStore } from '@/stores/dice.store';
-import type { DiceRoll } from '@/types';
+import { useToast } from '@/hooks/useToast';
+import type { AckResult, DiceRoll } from '@/types';
 
-export function useDice(enabled = true) {
+export interface UseDiceResult {
+  rolls: DiceRoll[];
+  roll: (expression: string) => Promise<DiceRoll | null>;
+  clear: () => void;
+}
+
+export function useDice(): UseDiceResult {
+  const { socket } = useSocketContext();
   const rolls = useDiceStore((s) => s.rolls);
-  const add = useDiceStore((s) => s.add);
   const clear = useDiceStore((s) => s.clear);
+  const toast = useToast();
 
-  useSocketEvent('dice:result', (roll: DiceRoll) => add(roll), enabled);
-
-  const roll = useCallback((_expression: string) => {
-    // TODO fase 5: socket.emit('dice:roll', { expression })
-    return Promise.resolve<DiceRoll | null>(null);
-  }, []);
+  const roll = useCallback(
+    (expression: string): Promise<DiceRoll | null> => {
+      const trimmed = expression.trim();
+      if (!trimmed) return Promise.resolve(null);
+      return new Promise<DiceRoll | null>((resolve) => {
+        socket.emit('dice:roll', { expression: trimmed }, (ack: AckResult<DiceRoll>) => {
+          if (ack.ok && ack.data) {
+            resolve(ack.data);
+            return;
+          }
+          const msg = ack.error?.message ?? 'Falha ao rolar dados';
+          toast.error(msg);
+          resolve(null);
+        });
+      });
+    },
+    [socket, toast],
+  );
 
   return { rolls, roll, clear };
 }

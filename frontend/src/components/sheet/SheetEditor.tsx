@@ -8,8 +8,9 @@
  *   - Botão "Salvar" desabilitado enquanto o JSON é inválido.
  *   - Botão "Cancelar" descarta as mudanças.
  *
- * Stub: `onSave` é o consumidor (RoomPage/SheetPage) — por enquanto
- * a ação é no-op com toast.
+ * `onSave(payload)` é assíncrono no consumer (SheetPage) — aqui
+ * só disparamos o callback e deixamos o estado de "saving" ser
+ * controlado pelo `disabled` externo.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Box, Button, Card, Stack, TextField, Typography } from '@mui/material';
@@ -20,7 +21,8 @@ import type { Character } from '@/types';
 
 export interface SheetEditorProps {
   character: Character;
-  onSave: (next: { name: string; data: Record<string, unknown> }) => void;
+  onSave: (next: { name: string; data: Record<string, unknown> }) => void | Promise<void>;
+  disabled?: boolean;
 }
 
 function formatJson(data: Record<string, unknown>): string {
@@ -43,7 +45,7 @@ function safeParseJson(text: string): { ok: true; value: Record<string, unknown>
   }
 }
 
-export function SheetEditor({ character, onSave }: SheetEditorProps) {
+export function SheetEditor({ character, onSave, disabled }: SheetEditorProps) {
   const toast = useToast();
   const [name, setName] = useState<string>(character.name);
   const [text, setText] = useState<string>(formatJson(character.data));
@@ -58,16 +60,15 @@ export function SheetEditor({ character, onSave }: SheetEditorProps) {
   const isDirty =
     name !== character.name || (parseResult.ok && JSON.stringify(parseResult.value) !== JSON.stringify(character.data));
 
-  const handleSave = () => {
+  const handleSave = (): void => {
     if (!parseResult.ok) {
       toast.error(parseResult.error);
       return;
     }
-    onSave({ name: name.trim() || character.name, data: parseResult.value });
-    toast.info('Salvar ficha chega na próxima fase.');
+    void onSave({ name: name.trim() || character.name, data: parseResult.value });
   };
 
-  const handleReset = () => {
+  const handleReset = (): void => {
     setName(character.name);
     setText(formatJson(character.data));
   };
@@ -86,6 +87,7 @@ export function SheetEditor({ character, onSave }: SheetEditorProps) {
             size="small"
             fullWidth
             inputProps={{ maxLength: 60 }}
+            disabled={disabled === true}
           />
         </Box>
 
@@ -105,6 +107,7 @@ export function SheetEditor({ character, onSave }: SheetEditorProps) {
                 ? 'Estrutura JSON livre. Suporta objetos aninhados.'
                 : parseResult.error
             }
+            disabled={disabled === true}
             slotProps={{
               input: { sx: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13 } },
             }}
@@ -116,7 +119,7 @@ export function SheetEditor({ character, onSave }: SheetEditorProps) {
             variant="text"
             startIcon={<RestartAltIcon />}
             onClick={handleReset}
-            disabled={!isDirty}
+            disabled={!isDirty || disabled === true}
           >
             Cancelar
           </Button>
@@ -124,9 +127,9 @@ export function SheetEditor({ character, onSave }: SheetEditorProps) {
             variant="contained"
             startIcon={<SaveIcon />}
             onClick={handleSave}
-            disabled={!isDirty || !parseResult.ok}
+            disabled={!isDirty || !parseResult.ok || disabled === true}
           >
-            Salvar
+            {disabled ? 'Salvando…' : 'Salvar'}
           </Button>
         </Stack>
       </Stack>

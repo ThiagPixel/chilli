@@ -33,13 +33,13 @@ createRoot(container).render(
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
-        <RoomProvider>
-          <SocketProvider>
+        <SocketProvider>
+          <RoomProvider>
             <ToastProvider>
               <AppRouter />
             </ToastProvider>
-          </SocketProvider>
-        </RoomProvider>
+          </RoomProvider>
+        </SocketProvider>
       </AuthProvider>
     </ThemeProvider>
   </StrictMode>,

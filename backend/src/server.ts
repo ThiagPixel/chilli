@@ -4,11 +4,13 @@
  * - Carrega env
  * - Cria app via factory
  * - Inicia listening
+ * - Anexa Socket.IO no mesmo `httpServer` (mesma porta, `/socket.io`)
  * - Encerramento gracioso (SIGINT/SIGTERM) fecha o server e o pool Postgres
  */
 import { loadEnv } from './config/env.js';
 import { createApp } from './app.js';
 import { closePool } from './database/connection.js';
+import { attachSocketServer } from './sockets/index.js';
 import { logger } from './utils/logger.js';
 
 async function main(): Promise<void> {
@@ -19,6 +21,9 @@ async function main(): Promise<void> {
   const server = app.listen(env.PORT, () => {
     logger.info({ port: env.PORT }, 'http server listening');
   });
+
+  // Anexa Socket.IO no mesmo http server (mesma porta).
+  attachSocketServer(server);
 
   server.on('error', (err) => {
     logger.error({ err }, 'falha ao iniciar http server');

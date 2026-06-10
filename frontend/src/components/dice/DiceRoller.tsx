@@ -14,9 +14,9 @@
  *   │  <RollResult />                  │
  *   └──────────────────────────────────┘
  *
- * Stub: as ações disparam toast "em breve" — a rolagem real
- * passa pelo `useDice.roll()` (no-op) e o resultado vai entrar
- * no store via `dice:result` na fase 5.
+ * Quick roll e expressão custom chamam `useDice().roll()`, que emite
+ * `dice:roll` no socket. O resultado volta via `dice:result` e entra
+ * no store. O broadcast para os outros membros é o mesmo evento.
  */
 import { useState, type FormEvent } from 'react';
 import { Box, Button, Divider, Stack, TextField, Typography } from '@mui/material';
@@ -42,19 +42,17 @@ export function DiceRoller({ roomCode: _roomCode }: DiceRollerProps) {
   const parsed = parseSimpleExpression(expression);
   const isExpressionValid = parsed !== null;
 
-  const handleQuickRoll = (sides: DiceSides) => {
+  const handleQuickRoll = (sides: DiceSides): void => {
     void roll(`1d${sides}`);
-    toast.info(`Rolagem de d${sides} chega na próxima fase.`);
   };
 
-  const handleExpressionRoll = (e?: FormEvent) => {
+  const handleExpressionRoll = (e?: FormEvent): void => {
     e?.preventDefault();
     if (!isExpressionValid) {
       toast.error('Expressão inválida. Tente algo como 2d6+3.');
       return;
     }
     void roll(expression.trim());
-    toast.info(`Rolagem de ${expression} chega na próxima fase.`);
   };
 
   return (

@@ -4,12 +4,11 @@
  * Mostra:
  *   - O próprio usuário no topo (com chip "você").
  *   - Demais membros, mestre primeiro.
- *   - Ação "abrir ficha" em cada linha.
+ *   - Ação "Minha ficha" para si; "Ficha" para outros (v2, fora do MVP).
  *
- * Stub: `onOpenSheet` é uma prop que a `RoomPage` usa para
- * navegar até a aba "Ficha" (ou abrir um modal). O estado
- * `members` virá de `usePlayersStore` populado pelo socket
- * na fase 5.
+ * `members` é populado via Socket.IO (`room:state.members` +
+ * eventos `room:user_joined` / `room:user_left`) e mantido em
+ * `usePlayersStore`.
  */
 import { useMemo } from 'react';
 import { Box, Button, Stack, Typography } from '@mui/material';
@@ -45,15 +44,23 @@ export function PlayerList({ members: membersProp, onOpenSheet }: PlayerListProp
     });
   }, [members, user]);
 
-  const copyCode = () => {
+  const copyCode = (): void => {
     if (typeof navigator === 'undefined' || !navigator.clipboard) return;
     const code = location.pathname.replace(PATHS.roomPattern, '').replace('/r/', '');
     void navigator.clipboard.writeText(code);
     toast.success('Código copiado.');
   };
 
-  const fallbackOpen = (id: string) => {
-    toast.info(`Ficha de ${id} em breve.`);
+  const handleOpen = (targetId: string, isMe: boolean): void => {
+    if (isMe && onOpenSheet) {
+      onOpenSheet(targetId);
+      return;
+    }
+    // Ver a ficha de OUTROS jogadores não está no MVP — é uma feature
+    // v2 (ficha pública vs privada). Sinaliza com info até lá.
+    if (!isMe) {
+      toast.info('Ver fichas de outros jogadores chega em uma próxima fase.');
+    }
   };
 
   return (
@@ -84,24 +91,20 @@ export function PlayerList({ members: membersProp, onOpenSheet }: PlayerListProp
           <Stack spacing={1}>
             {sorted.map((m) => {
               const isMe = Boolean(user && m.user.id === user.id);
-              const open = onOpenSheet ?? fallbackOpen;
-              const showAction = isMe || onOpenSheet;
               return (
                 <PlayerBadge
                   key={m.user.id}
                   user={m.user}
                   role={m.role}
                   right={
-                    showAction ? (
-                      <Button
-                        size="small"
-                        variant="text"
-                        startIcon={<DescriptionIcon />}
-                        onClick={() => open(m.user.id)}
-                      >
-                        {isMe ? 'Minha ficha' : 'Ficha'}
-                      </Button>
-                    ) : null
+                    <Button
+                      size="small"
+                      variant="text"
+                      startIcon={<DescriptionIcon />}
+                      onClick={() => handleOpen(m.user.id, isMe)}
+                    >
+                      {isMe ? 'Minha ficha' : 'Ficha'}
+                    </Button>
                   }
                 />
               );

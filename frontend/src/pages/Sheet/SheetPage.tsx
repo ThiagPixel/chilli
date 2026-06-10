@@ -5,10 +5,10 @@
  *   - Se já tem ficha: alterna entre "ver" e "editar".
  *   - Se ainda não tem: editor com template mínimo vazio.
  *
- * Stub: a fonte da verdade é `sheetService.upsert`/`update`,
- * chamado via `onSave` (no-op com toast na fase 5).
+ * Persistência: `sheetService.upsert(code, { name, data })` para criar
+ * ou atualizar (o backend faz UPSERT por (room, user)).
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Button, Stack } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -17,6 +17,8 @@ import { SheetEditor } from '@/components/sheet/SheetEditor';
 import { EmptyState } from '@/components/ui';
 import DescriptionIcon from '@mui/icons-material/Description';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/useToast';
+import { sheetService } from '@/services';
 import type { Character } from '@/types';
 
 export interface SheetPageProps {
@@ -51,12 +53,35 @@ function emptySheet(userName: string): Character {
   };
 }
 
-export function SheetPage({ roomCode: _roomCode }: SheetPageProps) {
+export function SheetPage({ roomCode }: SheetPageProps) {
   const { user } = useAuth();
+  const toast = useToast();
   const [sheet, setSheet] = useState<Character | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(true);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  const handleStart = () => {
+  // Tenta carregar a ficha existente do jogador nesta sala.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await sheetService.list(roomCode);
+        if (cancelled) return;
+        const mine = res.find((c) => user && c.userId === user.id);
+        if (mine) {
+          setSheet(mine);
+          setIsEditing(false);
+        }
+      } catch {
+        // Silencioso: se falhar, fica na tela de "criar ficha".
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [roomCode, user]);
+
+  const handleStart = (): void => {
     if (sheet) {
       setIsEditing(true);
       return;
@@ -65,10 +90,20 @@ export function SheetPage({ roomCode: _roomCode }: SheetPageProps) {
     setIsEditing(true);
   };
 
-  const handleSave = (next: { name: string; data: Record<string, unknown> }) => {
+  const handleSave = async (next: { name: string; data: Record<string, unknown> }): Promise<void> => {
     if (!sheet) return;
-    setSheet({ ...sheet, name: next.name, data: next.data });
-    setIsEditing(false);
+    setIsSaving(true);
+    try {
+      const saved = await sheetService.upsert(roomCode, { name: next.name, data: next.data });
+      setSheet(saved);
+      setIsEditing(false);
+      toast.success('Ficha salva.');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Falha ao salvar ficha';
+      toast.error(message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (!sheet) {
@@ -96,6 +131,7 @@ export function SheetPage({ roomCode: _roomCode }: SheetPageProps) {
           variant="text"
           startIcon={isEditing ? <VisibilityIcon /> : <EditIcon />}
           onClick={() => setIsEditing((v) => !v)}
+          disabled={isSaving}
         >
           {isEditing ? 'Ver ficha' : 'Editar'}
         </Button>
@@ -103,7 +139,7 @@ export function SheetPage({ roomCode: _roomCode }: SheetPageProps) {
 
       <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {isEditing ? (
-          <SheetEditor character={sheet} onSave={handleSave} />
+          <SheetEditor character={sheet} onSave={handleSave} disabled={isSaving} />
         ) : (
           <SheetRenderer character={sheet} />
         )}

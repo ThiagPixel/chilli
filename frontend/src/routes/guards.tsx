@@ -2,21 +2,16 @@
  * Guards de rota.
  *
  * - `RequireAuth` — só renderiza `children` se o usuário estiver autenticado.
- * - `RequireRoom` — só renderiza se o usuário for membro da sala.
- *
- * Modo stub (fase 5): as guards existem para plugar quando a
- * autenticação real chegar. Por enquanto são **permissivas** —
- * sempre deixam passar — para que toda a UI fique navegável
- * durante o desenvolvimento visual. Troque `STUB_PERMISSIVE_GUARDS`
- * para `false` quando o backend estiver pronto.
+ * - `RequireRoom` — só renderiza se o usuário for membro da sala (faz join
+ *   automático se ainda não estiver na sala).
  */
-import { Navigate, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Navigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useRoom } from '@/hooks/useRoom';
 import { PATHS } from './paths';
+import { Box, CircularProgress } from '@mui/material';
 import type { ReactNode } from 'react';
-
-const STUB_PERMISSIVE_GUARDS = true;
 
 export interface RequireAuthProps {
   children: ReactNode;
@@ -26,10 +21,12 @@ export function RequireAuth({ children }: RequireAuthProps) {
   const { user, isLoading } = useAuth();
   const location = useLocation();
 
-  if (STUB_PERMISSIVE_GUARDS) return <>{children}</>;
-
   if (isLoading) {
-    return null; // Suspense/loading fica a cargo do layout
+    return (
+      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 240 }}>
+        <CircularProgress size={32} />
+      </Box>
+    );
   }
   if (!user) {
     return <Navigate to={PATHS.home} replace state={{ from: location.pathname }} />;
@@ -39,15 +36,45 @@ export function RequireAuth({ children }: RequireAuthProps) {
 
 export interface RequireRoomProps {
   children: ReactNode;
-  /** Código de sala extraído dos params. */
-  code: string;
 }
 
-export function RequireRoom({ children, code: _code }: RequireRoomProps) {
-  const { isJoined, isJoining, join } = useRoom();
-  void join;
-  if (STUB_PERMISSIVE_GUARDS) return <>{children}</>;
-  if (isJoining) return null;
-  if (!isJoined) return <Navigate to={PATHS.joinRoom} replace />;
+export function RequireRoom({ children }: RequireRoomProps) {
+  // Extrai o `code` do path param (rota é `r/:code`).
+  const { code: codeParam } = useParams<{ code: string }>();
+  const code = (codeParam ?? '').toUpperCase();
+
+  const { user, isLoading: authLoading } = useAuth();
+  const { isJoined, isJoining, error, join } = useRoom();
+
+  // Tenta entrar na sala assim que tivermos user + code.
+  // join() é idempotente no backend (membro ativo não duplica).
+  useEffect(() => {
+    if (authLoading || !user || !code) return;
+    if (!isJoined && !isJoining) {
+      void join(code);
+    }
+  }, [authLoading, user, isJoined, isJoining, code, join]);
+
+  if (!code) {
+    return <Navigate to={PATHS.home} replace />;
+  }
+  if (authLoading) {
+    return (
+      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 240 }}>
+        <CircularProgress size={32} />
+      </Box>
+    );
+  }
+  if (isJoining || (!isJoined && !error)) {
+    return (
+      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 240 }}>
+        <CircularProgress size={32} />
+      </Box>
+    );
+  }
+  if (error || !isJoined) {
+    // Falha de join: redireciona para a tela de entrar com o código preenchido.
+    return <Navigate to={`${PATHS.joinRoom}?code=${encodeURIComponent(code)}`} replace />;
+  }
   return <>{children}</>;
 }

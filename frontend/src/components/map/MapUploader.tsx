@@ -6,7 +6,8 @@
  *   - Toque/clique → abre seletor de arquivo.
  *
  * Valida tipo (image/*) e tamanho (até 10 MB) antes de chamar
- * `onUpload`. Stub: o handler dispara um toast "em breve".
+ * `onUpload`. O consumer (MapView) é quem de fato envia o arquivo
+ * para o backend.
  */
 import { useRef, useState, type DragEvent, type ChangeEvent } from 'react';
 import { Box, Button, Stack, Typography } from '@mui/material';
@@ -35,7 +36,6 @@ export function MapUploader({ onUpload, disabled }: MapUploaderProps) {
       return;
     }
     onUpload(file);
-    toast.info('Upload de mapa chega na próxima fase.');
   };
 
   const onDrop = (e: DragEvent<HTMLLabelElement>) => {

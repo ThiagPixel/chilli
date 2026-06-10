@@ -66,7 +66,7 @@ const router = createBrowserRouter([
         path: 'r/:code',
         element: (
           <RequireAuth>
-            <RequireRoom code=":code">{withSuspense(<RoomPage />)}</RequireRoom>
+            <RequireRoom>{withSuspense(<RoomPage />)}</RequireRoom>
           </RequireAuth>
         ),
       },

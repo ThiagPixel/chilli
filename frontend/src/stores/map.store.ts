@@ -1,7 +1,12 @@
 /**
- * map.store — estado do mapa ativo (id, posição, zoom).
+ * map.store — estado do mapa ativo e da viewport.
+ *
+ * O objeto `active` (RoomMap) é a fonte de verdade do "qual mapa
+ * está sendo visto". A `view` (x/y/zoom) é volátil — perdida ao
+ * trocar de mapa. Sincronizada com o servidor via `map:updated`.
  */
 import { create } from 'zustand';
+import type { RoomMap } from '@/types';
 
 export interface MapViewState {
   x: number;
@@ -10,9 +15,9 @@ export interface MapViewState {
 }
 
 interface MapState {
-  activeMapId: string | null;
+  active: RoomMap | null;
   view: MapViewState;
-  setActive: (id: string | null) => void;
+  setActive: (map: RoomMap | null) => void;
   setView: (view: Partial<MapViewState>) => void;
   reset: () => void;
 }
@@ -20,9 +25,9 @@ interface MapState {
 const DEFAULT_VIEW: MapViewState = { x: 0, y: 0, zoom: 1 };
 
 export const useMapStore = create<MapState>((set) => ({
-  activeMapId: null,
+  active: null,
   view: DEFAULT_VIEW,
-  setActive: (id) => set({ activeMapId: id, view: DEFAULT_VIEW }),
+  setActive: (map) => set({ active: map, view: DEFAULT_VIEW }),
   setView: (view) => set((s) => ({ view: { ...s.view, ...view } })),
-  reset: () => set({ activeMapId: null, view: DEFAULT_VIEW }),
+  reset: () => set({ active: null, view: DEFAULT_VIEW }),
 }));

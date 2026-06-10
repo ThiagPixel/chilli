@@ -9,28 +9,32 @@
  *   │  Composer (footer)   │
  *   └──────────────────────┘
  *
- * Por enquanto a fonte de dados é o store Zustand (chat.store)
- * — populado via Socket.IO na fase 5. O composer chama
- * `useChat().send` (no-op) e exibe um toast "em breve".
+ * O Composer recebe `onSend(body)` e despacha:
+ *   - `/r 2d6+3` ou `/d 2d6+3` → `useDice().roll(expr)` (vai pro histórico de dados)
+ *   - qualquer outro texto → `useChat().send(body)`
+ *
+ * Os eventos `chat:message` e `dice:result` (chegando do socket) já
+ * populam as stores; o autor recebe o eco no broadcast.
  */
 import { useMemo } from 'react';
 import { Box, Stack } from '@mui/material';
 import { useChat } from '@/hooks/useChat';
+import { useDice } from '@/hooks/useDice';
 import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/useToast';
 import { usePlayersStore } from '@/stores/players.store';
 import { MessageList } from './MessageList';
 import { Composer } from './Composer';
+import { parseSimpleExpression } from '@/components/dice/diceParser';
 import type { Message, User } from '@/types';
 
 export interface ChatPanelProps {
   roomCode: string;
 }
 
-export function ChatPanel({ roomCode: _roomCode }: ChatPanelProps) {
+export function ChatPanel({ roomCode }: ChatPanelProps) {
   const { messages, send } = useChat();
+  const { roll } = useDice();
   const { user } = useAuth();
-  const toast = useToast();
   const members = usePlayersStore((s) => s.members);
 
   // Mapa userId → User para resolver nome/avatar nas mensagens.
@@ -40,17 +44,25 @@ export function ChatPanel({ roomCode: _roomCode }: ChatPanelProps) {
     return map;
   }, [members]);
 
-  const handleSend = (_body: string) => {
-    // Stub: implementação real (Socket.IO) entra na fase 5.
-    void send;
-    toast.info('Envio de mensagens chega na próxima fase.');
+  const handleSend = (body: string): void => {
+    const trimmed = body.trim();
+    if (!trimmed) return;
+    if (trimmed.startsWith('/r ') || trimmed.startsWith('/d ')) {
+      const expr = trimmed.slice(3).trim();
+      // Validação local rápida; o servidor revalida e devolve erro se inválida.
+      if (parseSimpleExpression(expr) === null) {
+        return;
+      }
+      void roll(expr);
+      return;
+    }
+    void send(trimmed);
   };
 
-  // Filtramos mensagens inválidas (sem tipo) por segurança.
   const visible = useMemo<Message[]>(() => messages.filter(Boolean), [messages]);
 
   return (
-    <Stack sx={{ flex: 1, minHeight: 0 }} data-room={_roomCode}>
+    <Stack sx={{ flex: 1, minHeight: 0 }} data-room={roomCode}>
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>
         <MessageList
           messages={visible}

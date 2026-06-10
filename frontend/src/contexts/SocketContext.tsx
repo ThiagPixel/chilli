@@ -1,13 +1,21 @@
 /**
- * SocketContext — status da conexão Socket.IO e helpers de subscribe.
+ * SocketContext — gerencia o ciclo de vida do Socket.IO.
  *
- * Stub: expõe a forma final, mas só repassa o estado do singleton.
- * O provider real vai cuidar de auto-connect quando o usuário
- * estiver autenticado e numa sala.
+ * Conecta automaticamente quando o `user` do AuthContext está
+ * disponível; desconecta no logout. O resto da aplicação consome
+ * `isConnected` para mostrar feedback de conexão.
  */
-import { createContext, useMemo, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import { getSocket, connectSocket, disconnectSocket } from '@/services/socket';
+import { useAuth } from '@/hooks/useAuth';
 import type { ChilliSocket } from '@/types';
-import { getSocket } from '@/services';
 
 export interface SocketContextValue {
   socket: ChilliSocket;
@@ -21,10 +29,48 @@ interface SocketProviderProps {
 }
 
 export function SocketProvider({ children }: SocketProviderProps) {
-  const value: SocketContextValue = useMemo(() => {
-    const socket = getSocket();
-    return { socket, isConnected: socket.connected };
-  }, []);
+  const { user } = useAuth();
+  const socket = useMemo<ChilliSocket>(() => getSocket(), []);
+  const [isConnected, setIsConnected] = useState<boolean>(socket.connected);
+
+  useEffect(() => {
+    const onConnect = (): void => setIsConnected(true);
+    const onDisconnect = (): void => setIsConnected(false);
+    // Os eventos `connect`/`disconnect` são nativos do socket.io-client;
+    // eles não estão tipados no nosso `ChilliSocket` (que só conhece os
+    // eventos do domínio), então fazemos cast.
+    socket.on('connect', onConnect as never);
+    socket.on('disconnect', onDisconnect as never);
+    return () => {
+      socket.off('connect', onConnect as never);
+      socket.off('disconnect', onDisconnect as never);
+    };
+  }, [socket]);
+
+  // Auto-connect quando o user autentica; auto-disconnect quando sai.
+  useEffect(() => {
+    if (user) {
+      connectSocket();
+    } else {
+      disconnectSocket();
+    }
+    // O `socket` em si é estável (singleton); só reagimos ao user.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  const value = useMemo<SocketContextValue>(
+    () => ({ socket, isConnected }),
+    [socket, isConnected],
+  );
 
   return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;
+}
+
+/** Hook para consumir o socket context. */
+export function useSocketContext(): SocketContextValue {
+  const ctx = useContext(SocketContext);
+  if (!ctx) {
+    throw new Error('useSocketContext deve ser usado dentro de <SocketProvider>');
+  }
+  return ctx;
 }

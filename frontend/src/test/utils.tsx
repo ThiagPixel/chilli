@@ -29,11 +29,11 @@ export function renderWithProviders(
         <CssBaseline />
         <MemoryRouter initialEntries={initialEntries}>
           <AuthProvider>
-            <RoomProvider>
-              <SocketProvider>
+            <SocketProvider>
+              <RoomProvider>
                 <ToastProvider>{children}</ToastProvider>
-              </SocketProvider>
-            </RoomProvider>
+              </RoomProvider>
+            </SocketProvider>
           </AuthProvider>
         </MemoryRouter>
       </ThemeProvider>

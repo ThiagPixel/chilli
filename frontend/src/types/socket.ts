@@ -64,14 +64,18 @@ export type ChilliSocket = {
     event: E,
     ...args: Parameters<ClientToServerEvents[E]>
   ) => void;
-  on: <E extends keyof ServerToClientEvents>(
+  on(event: 'connect', listener: () => void): void;
+  on(event: 'disconnect', listener: (reason: string) => void): void;
+  on<E extends keyof ServerToClientEvents>(
     event: E,
     listener: ServerToClientEvents[E],
-  ) => void;
-  off: <E extends keyof ServerToClientEvents>(
+  ): void;
+  off(event: 'connect', listener: () => void): void;
+  off(event: 'disconnect', listener: (reason: string) => void): void;
+  off<E extends keyof ServerToClientEvents>(
     event: E,
     listener: ServerToClientEvents[E],
-  ) => void;
+  ): void;
   disconnect: () => void;
   connected: boolean;
 };
