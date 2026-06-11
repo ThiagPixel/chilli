@@ -25,9 +25,8 @@ services:
       dockerfile: Dockerfile
     container_name: chilli-backend-staging
     restart: unless-stopped
-    # Roda como uid:gid do usuário `node` da imagem (1000:1000) para
-    # escrever no volume de uploads (criado pelo Docker como root).
-    user: "1000:1000"
+    # O Dockerfile já roda como `node` (uid 1000). O entrypoint
+    # (docker-entrypoint.sh) ajusta o owner de /uploads no boot.
     env_file:
       - ./backend/.env.staging
     volumes:

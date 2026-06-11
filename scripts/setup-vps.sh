@@ -31,7 +31,7 @@ APP_CODE_DIR="$APP_DIR/app"
 echo "[setup] instalando pacotes..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -yqq ufw fail2ban openssl curl
+apt-get install -yqq ufw fail2ban openssl curl certbot ca-certificates
 
 echo "[setup] UFW..."
 ufw --force reset

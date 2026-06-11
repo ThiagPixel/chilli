@@ -1,0 +1,50 @@
+# =============================================================================
+# Chilli — frontend .dockerignore
+# Impede que o contexto de build carregue lixo local. O build context
+# agora é ./frontend (não mais a raiz do repo).
+# =============================================================================
+
+# Dependências instaladas pelo Docker a partir do package.json
+node_modules
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+.pnpm-store
+
+# Output do build — gerado dentro do Docker, não precisa estar no contexto
+dist
+build
+coverage
+
+# Secrets e envs locais
+.env
+.env.*
+!.env.example
+
+# Git, IDE, OS
+.git
+.gitignore
+.github
+.vscode
+.idea
+.DS_Store
+
+# Testes locais
+.vitest
+test-results
+playwright-report
+.playwright-mcp
+
+# Dockerfiles e compose
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Docs
+README.md
+*.md
+ARCHITECTURE.md
+CLAUDE.md
+
+# Service worker gerado em build (não versionado)
+dev-dist
