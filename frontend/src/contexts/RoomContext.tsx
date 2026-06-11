@@ -146,6 +146,35 @@ export function RoomProvider({ children }: RoomProviderProps) {
     resetLocalState();
   }, [socket, isJoined, resetLocalState]);
 
+  // ---- REJOIN AUTOMÁTICO APOS RECONEXÃO -------------------------------
+  // Quando o socket reconecta (isConnected vira true depois de estar false),
+  // e estamos em uma sala (isJoined=true), re-emitimos `room:join`.
+  // O server handler é idempotente (já checa `alreadyJoined` para não
+  // postar system message duplicada) e devolve o RoomState completo
+  // via ack — re-hidrata tudo.
+  useEffect(() => {
+    if (!isConnected || !isJoined || !room) return;
+    // Flag: garante que o rejoin só dispara numa transição false→true,
+    // não em todo render onde isConnected é true.
+    let rejoinInFlight = false;
+    const onConnect = (): void => {
+      if (rejoinInFlight) return;
+      rejoinInFlight = true;
+      socket.emit('room:join', { code: room.code }, (ack: AckResult<RoomState>) => {
+        rejoinInFlight = false;
+        if (ack.ok && ack.data) {
+          // Re-hidrata tudo com o estado fresco do server.
+          hydrateFromState(ack.data);
+        }
+      });
+    };
+    // socket.io-client emite `connect` em todo reconnect.
+    socket.on('connect', onConnect as never);
+    return () => {
+      socket.off('connect', onConnect as never);
+    };
+  }, [isConnected, isJoined, room, socket, hydrateFromState]);
+
   // ---- LISTENERS REALTIME ---------------------------------------------
   // Registram só quando isJoined. Limpeza automática no unmount.
   useEffect(() => {

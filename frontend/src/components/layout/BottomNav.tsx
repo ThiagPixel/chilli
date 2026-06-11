@@ -2,14 +2,18 @@
  * BottomNav — barra de navegação inferior (mobile-first).
  *
  * Em desktop, escondida (a navegação lateral/superior assume).
+ *
+ * Mostra um pequeno dot vermelho no "Chat" quando o socket está
+ * desconectado (Feature #2: indicador de status no mobile).
  */
-import { BottomNavigation, BottomNavigationAction, Paper } from '@mui/material';
+import { Box, BottomNavigation, BottomNavigationAction, Paper } from '@mui/material';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import CasinoIcon from '@mui/icons-material/Casino';
 import MapIcon from '@mui/icons-material/Map';
 import PeopleIcon from '@mui/icons-material/People';
 import DescriptionIcon from '@mui/icons-material/Description';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useSocketContext } from '@/contexts/SocketContext';
 
 export type RoomTab = 'chat' | 'dice' | 'map' | 'players' | 'sheet';
 
@@ -27,6 +31,7 @@ const ITEMS: Array<{ value: RoomTab; label: string; icon: React.ReactNode }> = [
 ];
 
 export function BottomNav({ active, onChange }: BottomNavProps) {
+  const { isConnected } = useSocketContext();
   // Mantém a prop `value` controlada para acessibilidade.
   return (
     <Paper
@@ -49,7 +54,32 @@ export function BottomNav({ active, onChange }: BottomNavProps) {
         showLabels
       >
         {ITEMS.map((item) => (
-          <BottomNavigationAction key={item.value} value={item.value} label={item.label} icon={item.icon} />
+          <BottomNavigationAction
+            key={item.value}
+            value={item.value}
+            label={item.label}
+            icon={
+              <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+                {item.icon}
+                {item.value === 'chat' && !isConnected ? (
+                  <Box
+                    data-testid="bottom-nav-offline-dot"
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      right: 2,
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      bgcolor: 'error.main',
+                      border: '1.5px solid',
+                      borderColor: 'background.paper',
+                    }}
+                  />
+                ) : null}
+              </Box>
+            }
+          />
         ))}
       </BottomNavigation>
     </Paper>

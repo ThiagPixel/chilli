@@ -76,6 +76,9 @@ export type ChilliSocket = {
     event: E,
     listener: ServerToClientEvents[E],
   ): void;
+  /** Conecta manualmente (normalmente o `autoConnect: false` no cliente
+   *  + auto-connect no SocketContext faz isso; usado em retry). */
+  connect: () => void;
   disconnect: () => void;
   connected: boolean;
 };
