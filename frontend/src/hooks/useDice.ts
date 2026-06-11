@@ -1,27 +1,41 @@
 /**
- * useDice — rolagens em tempo real.
+ * useDice — rolagens em tempo real + paginação.
  *
- * - `rolls`: snapshot da store (atualizada por `dice:result` e
- *   hidratada por `room:state`).
- * - `roll(expression)`: emite `dice:roll` no socket; resolve com a
+ * - `rolls` / `hasMore` / `isLoading` — snapshot da store.
+ * - `roll(expression)` — emite `dice:roll` no socket; resolve com a
  *   rolagem persistida (ou `null` em erro).
+ * - `loadMore()` — busca rolagens mais antigas via REST
+ *   (`GET /api/rooms/:code/rolls?before=<iso>&limit=N`) e prepende
+ *   no store. Usado pelo infinite-scroll da UI.
  */
 import { useCallback } from 'react';
 import { useSocketContext } from '@/contexts/SocketContext';
 import { useDiceStore } from '@/stores/dice.store';
+import { useRoom } from '@/hooks/useRoom';
+import { diceService } from '@/services';
 import { useToast } from '@/hooks/useToast';
 import type { AckResult, DiceRoll } from '@/types';
 
+const PAGE_SIZE = 50;
+
 export interface UseDiceResult {
   rolls: DiceRoll[];
+  hasMore: boolean;
+  isLoading: boolean;
   roll: (expression: string) => Promise<DiceRoll | null>;
+  loadMore: () => Promise<void>;
   clear: () => void;
 }
 
 export function useDice(): UseDiceResult {
   const { socket } = useSocketContext();
+  const { room } = useRoom();
   const rolls = useDiceStore((s) => s.rolls);
+  const hasMore = useDiceStore((s) => s.hasMore);
+  const isLoading = useDiceStore((s) => s.isLoading);
   const clear = useDiceStore((s) => s.clear);
+  const setLoading = useDiceStore((s) => s.setLoading);
+  const prependOlder = useDiceStore((s) => s.prependOlder);
   const toast = useToast();
 
   const roll = useCallback(
@@ -43,5 +57,24 @@ export function useDice(): UseDiceResult {
     [socket, toast],
   );
 
-  return { rolls, roll, clear };
+  const loadMore = useCallback(async (): Promise<void> => {
+    if (isLoading || !hasMore) return;
+    const state = useDiceStore.getState();
+    const oldest = state.rolls[state.rolls.length - 1];
+    if (!oldest || !room?.code) return;
+
+    setLoading(true);
+    try {
+      const older = await diceService.history(room.code, oldest.createdAt, PAGE_SIZE);
+      // Se o server devolveu menos que `PAGE_SIZE`, não há mais.
+      const moreAvailable = older.length >= PAGE_SIZE;
+      prependOlder(older, moreAvailable);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Falha ao carregar histórico';
+      toast.error(message);
+      setLoading(false);
+    }
+  }, [isLoading, hasMore, room?.code, setLoading, prependOlder, toast]);
+
+  return { rolls, hasMore, isLoading, roll, loadMore, clear };
 }
