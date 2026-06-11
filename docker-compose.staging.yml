@@ -21,10 +21,13 @@ name: chilli-staging
 services:
   backend:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: chilli-backend-staging
     restart: unless-stopped
+    # Roda como uid:gid do usuário `node` da imagem (1000:1000) para
+    # escrever no volume de uploads (criado pelo Docker como root).
+    user: "1000:1000"
     env_file:
       - ./backend/.env.staging
     volumes:
@@ -42,14 +45,14 @@ services:
 
   frontend:
     build:
-      context: .
-      dockerfile: frontend/Dockerfile
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: chilli-frontend-staging
     restart: unless-stopped
     networks:
       - chilli_staging_net
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/healthz > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz > /dev/null || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -67,7 +70,9 @@ services:
       - ./infra/certs:/etc/nginx/certs:ro
       - chilli_uploads_staging:/uploads:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8443/healthz > /dev/null || exit 1"]
+      # HTTPS self-signed dá 400 em wget; check TCP é suficiente
+      # (a config do nginx é validada no start).
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8443 && nc -z 127.0.0.1 8080 || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 5

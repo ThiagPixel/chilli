@@ -73,14 +73,15 @@ docker compose -p "chilli-$ENV" \
   up -d --build
 
 # 4. Aguarda todos os serviços healthy.
+# docker compose ps --format json emite `"Health":"healthy"` (sem parênteses).
 log "aguardando serviços healthy..."
 for i in $(seq 1 90); do
-  UNHEALTHY=$(docker compose -p "chilli-$ENV" -f "$COMPOSE_FILE" ps --format json 2>/dev/null \
-    | grep -c '"Health":"(healthy)"' || true)
+  HEALTHY=$(docker compose -p "chilli-$ENV" -f "$COMPOSE_FILE" ps --format json 2>/dev/null \
+    | grep -c '"Health":"healthy"' || true)
   TOTAL=$(docker compose -p "chilli-$ENV" -f "$COMPOSE_FILE" ps --format json 2>/dev/null \
     | grep -c '"Service"' || true)
-  log "  $UNHEALTHY/$TOTAL serviços healthy"
-  if [[ "$UNHEALTHY" -ge "$TOTAL" && "$TOTAL" -gt 0 ]]; then
+  log "  $HEALTHY/$TOTAL serviços healthy"
+  if [[ "$HEALTHY" -ge "$TOTAL" && "$TOTAL" -gt 0 ]]; then
     log "todos os serviços healthy"
     break
   fi

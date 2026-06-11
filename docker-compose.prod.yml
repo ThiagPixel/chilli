@@ -22,10 +22,13 @@ name: chilli-prod
 services:
   backend:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: chilli-backend-prod
     restart: unless-stopped
+    # Roda como uid:gid do usuário `node` da imagem (1000:1000) para
+    # escrever no volume de uploads (criado pelo Docker como root).
+    user: "1000:1000"
     env_file:
       - ./backend/.env.prod
     volumes:
@@ -41,14 +44,14 @@ services:
 
   frontend:
     build:
-      context: .
-      dockerfile: frontend/Dockerfile
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: chilli-frontend-prod
     restart: unless-stopped
     networks:
       - chilli_prod_net
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/healthz > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz > /dev/null || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -63,16 +66,31 @@ services:
       - "443:443"
     volumes:
       - ./infra/nginx.prod.conf:/etc/nginx/nginx.conf:ro
-      - ./infra/certs:/etc/nginx/certs:ro
-      - chilli_uploads_prod:/uploads:ro
+      # Cert do Let's Encrypt (lido pelo nginx, gerenciado pelo certbot no host).
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      # Webroot para o desafio HTTP-01 do certbot. O nginx serve
+      # /.well-known/acme-challenge/ daqui; o certbot escreve os tokens
+      # durante `renew`.
+      - /var/www/letsencrypt:/var/www/letsencrypt:ro
+      # Volumes de upload dos DO backends. Cada server block aponta
+      # para o path certo (alias /uploads-prod/ ou /uploads-stg/) —
+      # a URL pública /uploads/... é a mesma, mas o conteúdo diverge
+      # por ambiente.
+      - chilli_uploads_prod:/uploads-prod:ro
+      - chilli_uploads_staging:/uploads-stg:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:443/healthz > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 443 && nc -z 127.0.0.1 80 || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 5
       start_period: 10s
+    # Ingressa nas duas redes para rotear chilliplay.com.br → prod
+    # e stg.chilliplay.com.br → staging. Os upstreams no nginx usam os
+    # container names únicos (chilli-backend-prod, chilli-backend-staging)
+    # para evitar ambiguidade de DNS.
     networks:
       - chilli_prod_net
+      - chilli_staging_net
     depends_on:
       backend:
         condition: service_healthy
@@ -81,8 +99,17 @@ services:
 
 volumes:
   chilli_uploads_prod:
+  # Declarado aqui (mesmo sem service local) para que o `docker compose up`
+  # saiba que o bind-mount da prod nginx em /uploads-stg aponta para um
+  # volume gerenciado pelo projeto chilli-staging.
+  chilli_uploads_staging:
+    external: true
+    name: chilli-staging_chilli_uploads_staging
 
 networks:
   chilli_prod_net:
     external: true
     name: chilli_prod_net
+  chilli_staging_net:
+    external: true
+    name: chilli_staging_net
