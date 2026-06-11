@@ -30,4 +30,9 @@ COPY --from=build /app/src/database/migrations ./dist/database/migrations
 EXPOSE 3000
 USER node
 
+# Healthcheck: aceita 200 e 503 (degraded mas app up).
+# start_period generoso porque o backend roda migrations no boot.
+HEALTHCHECK --interval=10s --timeout=3s --start-period=60s --retries=5 \
+  CMD wget -qO- http://localhost:3000/health > /dev/null || exit 1
+
 CMD ["node", "dist/server.js"]

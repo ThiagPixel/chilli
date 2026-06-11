@@ -13,6 +13,7 @@
  */
 import express, { type Express } from 'express';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import { requestId } from './middlewares/requestId.js';
 import { requestLogger } from './middlewares/requestLogger.js';
 import { errorHandler } from './middlewares/errorHandler.js';
@@ -24,10 +25,19 @@ export function createApp(): Express {
   const app = express();
 
   app.disable('x-powered-by');
-  app.set('trust proxy', true);
+  // Confia em 1 hop de proxy (Vite em dev, nginx em prod).
+  // Evita que `req.ip` aceite X-Forwarded-For de qualquer origem.
+  app.set('trust proxy', 1);
 
-  // CORS antes de tudo, inclusive do preflight OPTIONS.
-  app.use(corsDev);
+  // Security headers (HSTS, X-Frame-Options, X-Content-Type-Options, etc.).
+  // Especialmente importante para PWA + service worker.
+  app.use(helmet());
+
+  // CORS só faz sentido em dev (frontend e backend em origens diferentes).
+  // Em prod, SPA e API ficam no mesmo origin via nginx — não precisa.
+  if (process.env['NODE_ENV'] !== 'production') {
+    app.use(corsDev);
+  }
 
   // Cookies httpOnly (chilli_token) precisam do parser.
   app.use(cookieParser());
