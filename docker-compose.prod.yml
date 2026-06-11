@@ -1,0 +1,88 @@
+# ============================================================================
+# Chilli — stack de PRODUÇÃO.
+#
+# Projeto: chilli-prod
+# - backend (NODE_ENV=production, DATABASE_URL=...chilli)
+# - frontend (build Vite → nginx servindo dist/)
+# - nginx externo (HTTPS self-signed, publica 80/443 no host)
+#
+# Diferenças vs staging:
+#   - Portas 80/443 (vs 8080/8443)
+#   - DB = chilli (vs chilli_staging)
+#   - NODE_ENV=production
+#   - JWT_SECRET diferente
+#   - nginx.prod.conf (mesma estrutura, portas 80/443)
+#
+# Deploy:
+#   scripts/deploy.sh prod
+# ============================================================================
+
+name: chilli-prod
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: chilli-backend-prod
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env.prod
+    volumes:
+      - chilli_uploads_prod:/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 60s
+    networks:
+      - chilli_prod_net
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: chilli-frontend-prod
+    restart: unless-stopped
+    networks:
+      - chilli_prod_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/healthz > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: chilli-nginx-prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/certs:/etc/nginx/certs:ro
+      - chilli_uploads_prod:/uploads:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:443/healthz > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - chilli_prod_net
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+
+volumes:
+  chilli_uploads_prod:
+
+networks:
+  chilli_prod_net:
+    external: true
+    name: chilli_prod_net

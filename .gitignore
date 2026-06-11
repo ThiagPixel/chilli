@@ -21,8 +21,16 @@ build/
 .env.*.local
 .env.development
 .env.production
+.env.prod
+.env.staging
+.env.test
+*.env
+!*.env.example
+!*.env.prod.example
+!*.env.staging.example
 *.pem
-secrets/
+secrets/*
+!secrets/*.example
 
 # Logs
 *.log

@@ -1,0 +1,58 @@
+# ============================================================================
+# Chilli — Postgres compartilhado (staging + prod).
+#
+# Projeto: chilli-data
+# - 1 container Postgres 16
+# - 2 DBs: chilli (prod, criado via POSTGRES_DB) e chilli_staging (init SQL)
+# - Sem porta publicada no host (defesa contra UFW+Docker)
+# - Anexado às 2 redes dos apps: chilli_prod_net e chilli_staging_net
+#
+# Inicialização:
+#   1. setup-vps.sh cria as redes externas
+#   2. docker compose -p chilli-data -f docker-compose.postgres.yml \
+#        --env-file /srv/chilli/secrets/postgres.env up -d
+#
+# Senha: vive em /srv/chilli/secrets/postgres.env (chmod 600, owner chilli-deploy).
+# ============================================================================
+
+name: chilli-data
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: chilli-postgres
+    restart: unless-stopped
+    env_file:
+      - /srv/chilli/secrets/postgres.env
+    environment:
+      # POSTGRES_DB é sobrescrito por env_file; este default é fallback.
+      POSTGRES_DB: ${POSTGRES_DB:-chilli}
+    volumes:
+      - chilli_pgdata:/var/lib/postgresql/data
+      # Init script: cria chilli_staging no primeiro start (volume vazio).
+      - ./infra/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    # Sem `ports:` — postgres só acessível dentro das redes Docker.
+    networks:
+      - chilli_data_net
+      - chilli_prod_net
+      - chilli_staging_net
+
+volumes:
+  chilli_pgdata:
+
+networks:
+  chilli_data_net:
+    external: true
+    name: chilli_data_net
+  chilli_prod_net:
+    external: true
+    name: chilli_prod_net
+  chilli_staging_net:
+    external: true
+    name: chilli_staging_net

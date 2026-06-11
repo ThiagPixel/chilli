@@ -1,0 +1,89 @@
+# ============================================================================
+# Chilli — stack de STAGING.
+#
+# Projeto: chilli-staging
+# - backend (NODE_ENV=staging, DATABASE_URL=...chilli_staging)
+# - frontend (build Vite → nginx servindo dist/)
+# - nginx externo (HTTPS self-signed, publica 8080/8443 no host)
+#
+# Pré-requisitos (rodar setup-vps.sh uma vez):
+#   - Redes chilli_data_net, chilli_prod_net, chilli_staging_net criadas
+#   - Postgres up e healthy (chilli-data)
+#   - Certs self-signed em infra/certs/
+#   - .env.staging em backend/ (DATABASE_URL, JWT_SECRET)
+#
+# Deploy:
+#   scripts/deploy.sh staging
+# ============================================================================
+
+name: chilli-staging
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: chilli-backend-staging
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env.staging
+    volumes:
+      - chilli_uploads_staging:/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 60s
+    networks:
+      - chilli_staging_net
+    # Não depende de postgres via depends_on (é serviço externo).
+    # O deploy script garante a ordem: postgres up → backend up.
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: chilli-frontend-staging
+    restart: unless-stopped
+    networks:
+      - chilli_staging_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/healthz > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: chilli-nginx-staging
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+    volumes:
+      - ./infra/nginx.staging.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/certs:/etc/nginx/certs:ro
+      - chilli_uploads_staging:/uploads:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8443/healthz > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - chilli_staging_net
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+
+volumes:
+  chilli_uploads_staging:
+
+networks:
+  chilli_staging_net:
+    external: true
+    name: chilli_staging_net

@@ -1,0 +1,2 @@
+# Certificados TLS gerados por infra/generate-certs.sh.
+# Nunca commitar os .pem — estão cobertos pelo .gitignore da raiz.
