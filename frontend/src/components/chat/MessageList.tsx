@@ -5,10 +5,11 @@
  * estiver próximo do fundo quando chega uma mensagem nova — caso
  * contrário, mostra um botão flutuante "X novas mensagens".
  *
- * Stub: por enquanto as mensagens são resolvidas via props
- * (chat:message e chat:history vão popular isso na fase 5).
+ * O `scrollerRef` pode ser passado de fora para integrar com
+ * `usePullToRefresh` (o pai anexa os handlers de touch no
+ * scroller via esse ref).
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Box, Button, Stack } from '@mui/material';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { MessageItem } from './MessageItem';
@@ -28,10 +29,24 @@ export interface MessageListProps {
   currentUserId?: string | null;
   /** Slot inferior (ex.: Composer). */
   footer?: ReactNode;
+  /**
+   * Ref externo para o scroller. Usado pelo pai (ChatPanel) para
+   * passar o scroller para `usePullToRefresh`. Se omitido, um
+   * ref interno é criado (e o pull-to-refresh não funciona).
+   */
+  scrollerRef?: RefObject<HTMLDivElement | null>;
 }
 
-export function MessageList({ messages, authors, currentUserId, footer }: MessageListProps) {
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
+export function MessageList({
+  messages,
+  authors,
+  currentUserId,
+  footer,
+  scrollerRef: externalScrollerRef,
+}: MessageListProps) {
+  const internalScrollerRef = useRef<HTMLDivElement | null>(null);
+  // Usa ref externo se passado, senão interno.
+  const scrollerRef = externalScrollerRef ?? internalScrollerRef;
   const lastMessageCount = useRef<number>(messages.length);
   const [pendingCount, setPendingCount] = useState<number>(0);
 
@@ -51,7 +66,7 @@ export function MessageList({ messages, authors, currentUserId, footer }: Messag
     } else if (delta > 0) {
       setPendingCount((c) => c + delta);
     }
-  }, [messages]);
+  }, [messages, scrollerRef]);
 
   const scrollToBottom = () => {
     const el = scrollerRef.current;

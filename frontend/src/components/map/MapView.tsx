@@ -9,8 +9,12 @@
  * `map:updated` ou pelo upload). O mestre pode subir uma nova imagem
  * via `mapService.upload` — após o upload, o mapa é ativado e o
  * `map:state` é emitido com a viewport default.
+ *
+ * Pull-to-refresh: re-busca o mapa ativo do servidor (caso outro
+ * mestre tenha feito upload sem o socket chegar — defesa contra
+ * race conditions e reconexões).
  */
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 import { MapCanvas } from './MapCanvas';
 import { MapUploader } from './MapUploader';
@@ -18,6 +22,7 @@ import { useMapStore } from '@/stores/map.store';
 import { useSocketContext } from '@/contexts/SocketContext';
 import { mapService } from '@/services';
 import { useToast } from '@/hooks/useToast';
+import { RefreshableScroller } from '@/components/ui';
 
 export interface MapViewProps {
   roomCode: string;
@@ -27,6 +32,7 @@ export interface MapViewProps {
 export function MapView({ roomCode, isMaster }: MapViewProps) {
   const active = useMapStore((s) => s.active);
   const setActive = useMapStore((s) => s.setActive);
+  const setActiveKeepView = useMapStore((s) => s.setActiveKeepView);
   const setView = useMapStore((s) => s.setView);
   const { socket } = useSocketContext();
   const toast = useToast();
@@ -51,6 +57,18 @@ export function MapView({ roomCode, isMaster }: MapViewProps) {
     }
   };
 
+  const refresh = useCallback(async (): Promise<void> => {
+    try {
+      const maps = await mapService.list(roomCode);
+      const current = maps.find((m) => m.isActive) ?? null;
+      // Refresh preserva a viewport do usuário.
+      setActiveKeepView(current);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Falha ao atualizar mapa';
+      toast.error(message);
+    }
+  }, [roomCode, setActiveKeepView, toast]);
+
   return (
     <Stack sx={{ flex: 1, minHeight: 0 }} spacing={2}>
       {isMaster ? (
@@ -64,9 +82,13 @@ export function MapView({ roomCode, isMaster }: MapViewProps) {
         </Box>
       ) : null}
 
-      <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>
+      <RefreshableScroller
+        onRefresh={refresh}
+        refreshLabel="Atualizar mapa"
+        contentSx={{ display: 'flex' }}
+      >
         <MapCanvas map={active} />
-      </Box>
+      </RefreshableScroller>
     </Stack>
   );
 }

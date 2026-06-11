@@ -7,6 +7,8 @@
  * - `loadMore()` — busca rolagens mais antigas via REST
  *   (`GET /api/rooms/:code/rolls?before=<iso>&limit=N`) e prepende
  *   no store. Usado pelo infinite-scroll da UI.
+ * - `refresh()` — re-busca o histórico mais recente e substitui
+ *   o buffer (defesa contra race ou reconexão).
  */
 import { useCallback } from 'react';
 import { useSocketContext } from '@/contexts/SocketContext';
@@ -24,6 +26,7 @@ export interface UseDiceResult {
   isLoading: boolean;
   roll: (expression: string) => Promise<DiceRoll | null>;
   loadMore: () => Promise<void>;
+  refresh: () => Promise<void>;
   clear: () => void;
 }
 
@@ -36,6 +39,7 @@ export function useDice(): UseDiceResult {
   const clear = useDiceStore((s) => s.clear);
   const setLoading = useDiceStore((s) => s.setLoading);
   const prependOlder = useDiceStore((s) => s.prependOlder);
+  const hydrate = useDiceStore((s) => s.hydrate);
   const toast = useToast();
 
   const roll = useCallback(
@@ -76,5 +80,18 @@ export function useDice(): UseDiceResult {
     }
   }, [isLoading, hasMore, room?.code, setLoading, prependOlder, toast]);
 
-  return { rolls, hasMore, isLoading, roll, loadMore, clear };
+  const refresh = useCallback(async (): Promise<void> => {
+    if (!room?.code) return;
+    setLoading(true);
+    try {
+      const fresh = await diceService.history(room.code, undefined, PAGE_SIZE);
+      hydrate(fresh);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Falha ao atualizar rolagens';
+      toast.error(message);
+      setLoading(false);
+    }
+  }, [room?.code, setLoading, hydrate, toast]);
+
+  return { rolls, hasMore, isLoading, roll, loadMore, refresh, clear };
 }
