@@ -53,10 +53,11 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: withSuspense(<HomePage />) },
       {
+        // `CreateRoomPage` faz o primeiro signIn do usuário (sem sessão),
+        // então ela mesma não pode ficar atrás de `RequireAuth` — senão
+        // o guard joga o visitante de volta pra `/` antes do form existir.
         path: PATHS.createRoom.slice(1),
-        element: (
-          <RequireAuth>{withSuspense(<CreateRoomPage />)}</RequireAuth>
-        ),
+        element: withSuspense(<CreateRoomPage />),
       },
       {
         path: PATHS.joinRoom.slice(1),
