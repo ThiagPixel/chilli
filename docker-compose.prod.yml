@@ -91,9 +91,6 @@ services:
     networks:
       - chilli_prod_net
       - chilli_staging_net
-    networks:
-      - chilli_prod_net
-      - chilli_staging_net
     depends_on:
       backend:
         condition: service_healthy
