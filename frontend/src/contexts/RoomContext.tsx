@@ -63,11 +63,9 @@ export function RoomProvider({ children }: RoomProviderProps) {
     usePlayersStore.getState().set(state.members);
     useChatStore.getState().hydrate(state.recentMessages);
     useDiceStore.getState().hydrate(state.recentRolls);
-    if (state.activeMap) {
-      useMapStore.getState().setActive(state.activeMap);
-    } else {
-      useMapStore.getState().reset();
-    }
+    useMapStore.getState().setMaps(state.maps ?? []);
+    // `setActive(null)` zera a view mas preserva a lista de mapas.
+    useMapStore.getState().setActive(state.activeMap);
   }, []);
 
   // Cleanup universal: zera stores locais.
@@ -196,6 +194,23 @@ export function RoomProvider({ children }: RoomProviderProps) {
       useMapStore.getState().setActive(payload.map);
       useMapStore.getState().setView({ x: payload.x, y: payload.y, zoom: payload.zoom });
     };
+    const onMapsList = (payload: { maps: import('@/types').RoomMap[] }): void => {
+      // Fonte de verdade do servidor. Substitui a lista inteira.
+      useMapStore.getState().setMaps(payload.maps);
+      // Recalcula o `active`: mantém se ainda existe; senão, pega o
+      // primeiro com isActive=true; senão, null (sem mudar a view).
+      const store = useMapStore.getState();
+      const stillThere = payload.maps.find((m) => m.id === store.active?.id);
+      const nextActive =
+        stillThere ??
+        payload.maps.find((m) => m.isActive) ??
+        null;
+      if (nextActive !== store.active) {
+        // Não resetamos a view quando trocamos automaticamente — o
+        // `map:updated` separado se encarrega da viewport.
+        useMapStore.getState().setActiveKeepView(nextActive);
+      }
+    };
     const onError = (err: { code: string; message: string }): void => {
       toast.error(err.message || err.code);
     };
@@ -205,6 +220,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
     socket.on('chat:message', onChatMessage);
     socket.on('dice:result', onDiceResult);
     socket.on('map:updated', onMapUpdated);
+    socket.on('maps:list', onMapsList);
     socket.on('error', onError);
 
     return () => {
@@ -213,6 +229,7 @@ export function RoomProvider({ children }: RoomProviderProps) {
       socket.off('chat:message', onChatMessage);
       socket.off('dice:result', onDiceResult);
       socket.off('map:updated', onMapUpdated);
+      socket.off('maps:list', onMapsList);
       socket.off('error', onError);
     };
   }, [socket, isJoined, toast]);

@@ -156,6 +156,7 @@ function makeRoomState(): RoomState {
       },
     ],
     activeMap: fakeMap,
+    maps: [fakeMap],
   };
 }
 

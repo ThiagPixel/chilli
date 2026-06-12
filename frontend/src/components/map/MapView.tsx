@@ -2,22 +2,25 @@
  * MapView — aba "Mapa" da sala.
  *
  * Estrutura:
- *   - Mestre (isMaster): dropzone em cima + canvas embaixo.
+ *   - Mestre (isMaster): dropzone + lista de mapas + canvas.
  *   - Jogador: só o canvas.
  *
  * O mapa ativo vem de `useMapStore.active` (populado por `room:state` /
  * `map:updated` ou pelo upload). O mestre pode subir uma nova imagem
- * via `mapService.upload` — após o upload, o mapa é ativado e o
- * `map:state` é emitido com a viewport default.
+ * via `mapService.upload` — após o upload, o `maps:list` é broadcast
+ * e a lista atualiza automaticamente.
  *
- * Pull-to-refresh: re-busca o mapa ativo do servidor (caso outro
- * mestre tenha feito upload sem o socket chegar — defesa contra
- * race conditions e reconexões).
+ * A lista de mapas (`MapListPanel`) é exibida apenas para o mestre e
+ * reflete o estado global (realtime via `maps:list`).
+ *
+ * Pull-to-refresh: re-busca o mapa ativo do servidor (defesa contra race
+ * conditions e reconexões).
  */
 import { useCallback, useState } from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 import { MapCanvas } from './MapCanvas';
 import { MapUploader } from './MapUploader';
+import { MapListPanel } from './MapListPanel';
 import { useMapStore } from '@/stores/map.store';
 import { useSocketContext } from '@/contexts/SocketContext';
 import { mapService } from '@/services';
@@ -31,7 +34,8 @@ export interface MapViewProps {
 
 export function MapView({ roomCode, isMaster }: MapViewProps) {
   const active = useMapStore((s) => s.active);
-  const setActive = useMapStore((s) => s.setActive);
+  const maps = useMapStore((s) => s.maps);
+  const upsertMap = useMapStore((s) => s.upsertMap);
   const setActiveKeepView = useMapStore((s) => s.setActiveKeepView);
   const setView = useMapStore((s) => s.setView);
   const { socket } = useSocketContext();
@@ -44,11 +48,14 @@ export function MapView({ roomCode, isMaster }: MapViewProps) {
       // Nome default = nome do arquivo sem extensão.
       const defaultName = file.name.replace(/\.[^.]+$/, '').slice(0, 100) || 'Mapa';
       const map = await mapService.upload(roomCode, file, defaultName);
-      setActive(map);
+      // Update otimista: o `maps:list` do servidor é a fonte de verdade,
+      // mas inserimos já para feedback instantâneo.
+      upsertMap(map);
+      if (map.isActive) {
+        setView({ x: 0, y: 0, zoom: 1 });
+        socket.emit('map:state', { mapId: map.id, x: 0, y: 0, zoom: 1 });
+      }
       toast.success('Mapa enviado.');
-      // Emite a viewport default (centro) para todos verem.
-      socket.emit('map:state', { mapId: map.id, x: 0, y: 0, zoom: 1 });
-      setView({ x: 0, y: 0, zoom: 1 });
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Falha no upload';
       toast.error(message);
@@ -59,9 +66,12 @@ export function MapView({ roomCode, isMaster }: MapViewProps) {
 
   const refresh = useCallback(async (): Promise<void> => {
     try {
-      const maps = await mapService.list(roomCode);
-      const current = maps.find((m) => m.isActive) ?? null;
-      // Refresh preserva a viewport do usuário.
+      const fresh = await mapService.list(roomCode);
+      const current = fresh.find((m) => m.isActive) ?? null;
+      // Refresh preserva a viewport do usuário. Atualiza também a lista
+      // para resincronizar com o servidor (caso algum maps:list tenha
+      // se perdido).
+      useMapStore.getState().setMaps(fresh);
       setActiveKeepView(current);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Falha ao atualizar mapa';
@@ -78,6 +88,14 @@ export function MapView({ roomCode, isMaster }: MapViewProps) {
           </Typography>
           <Box sx={{ mt: 1 }}>
             <MapUploader onUpload={handleUpload} disabled={isUploading} />
+          </Box>
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="overline" color="text.secondary">
+              Mapas da mesa ({maps.length})
+            </Typography>
+            <Box sx={{ mt: 1 }}>
+              <MapListPanel roomCode={roomCode} maps={maps} />
+            </Box>
           </Box>
         </Box>
       ) : null}
