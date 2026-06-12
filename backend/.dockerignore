@@ -1,0 +1,56 @@
+# =============================================================================
+# Chilli — backend .dockerignore
+# Impede que o contexto de build carregue lixo local e potencialmente
+# exponha .env em camadas de imagem. O build context agora é ./backend
+# (não mais a raiz do repo), então tudo abaixo deste path é excluído.
+# =============================================================================
+
+# Dependências instaladas pelo Docker a partir do package.json
+node_modules
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+.pnpm-store
+
+# Output do build e artefatos
+dist
+build
+coverage
+*.tsbuildinfo
+
+# Secrets e envs locais — NUNCA entram na imagem
+.env
+.env.*
+!.env.prod.example
+!.env.staging.example
+!.env.example
+
+# Certs e segredos
+*.pem
+*.key
+
+# Git, IDE, OS
+.git
+.gitignore
+.github
+.vscode
+.idea
+.DS_Store
+
+# Testes locais (rodamos via vitest no host, não na imagem)
+.vitest
+test-results
+
+# Dockerfiles e compose (não usados no build do backend)
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Docs
+README.md
+*.md
+ARCHITECTURE.md
+CLAUDE.md
+
+# Migrations SQL — copiadas explicitamente pelo Dockerfile
+# (não ignoramos src/database/migrations para não quebrar o COPY)

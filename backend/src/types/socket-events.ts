@@ -33,6 +33,8 @@ export interface ServerToClientEvents {
   'chat:history': (messages: Message[]) => void;
   'dice:result': (roll: DiceRoll) => void;
   'map:updated': (payload: { map: Map; x: number; y: number; zoom: number }) => void;
+  /** Lista de mapas da sala (Feature #3 — enviado após upload/activate/delete/rename). */
+  'maps:list': (payload: { maps: Map[] }) => void;
   error: (payload: { code: string; message: string }) => void;
 }
 
@@ -51,4 +53,6 @@ export interface RoomState {
   recentMessages: Message[];
   recentRolls: DiceRoll[];
   activeMap: Map | null;
+  /** Lista completa de mapas da sala (Feature #3 — mapas múltiplos). */
+  maps: Map[];
 }

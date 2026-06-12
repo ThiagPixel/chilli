@@ -4,14 +4,15 @@
 # Projeto: chilli-prod
 # - backend (NODE_ENV=production, DATABASE_URL=...chilli)
 # - frontend (build Vite → nginx servindo dist/)
-# - nginx externo (HTTPS self-signed, publica 80/443 no host)
+# - nginx externo (HTTPS via Let's Encrypt, publica 80/443 no host)
 #
 # Diferenças vs staging:
 #   - Portas 80/443 (vs 8080/8443)
 #   - DB = chilli (vs chilli_staging)
 #   - NODE_ENV=production
 #   - JWT_SECRET diferente
-#   - nginx.prod.conf (mesma estrutura, portas 80/443)
+#   - nginx.prod.conf (rota por SNI: chilliplay.com.br → prod, stg.* → staging)
+#   - Cert de /etc/letsencrypt/live/chilliplay/ (emitido por infra/issue-letsencrypt.sh)
 #
 # Deploy:
 #   scripts/deploy.sh prod
@@ -26,9 +27,8 @@ services:
       dockerfile: Dockerfile
     container_name: chilli-backend-prod
     restart: unless-stopped
-    # Roda como uid:gid do usuário `node` da imagem (1000:1000) para
-    # escrever no volume de uploads (criado pelo Docker como root).
-    user: "1000:1000"
+    # O Dockerfile já roda como `node` (uid 1000). O entrypoint
+    # (docker-entrypoint.sh) ajusta o owner de /uploads no boot.
     env_file:
       - ./backend/.env.prod
     volumes:
@@ -88,6 +88,9 @@ services:
     # e stg.chilliplay.com.br → staging. Os upstreams no nginx usam os
     # container names únicos (chilli-backend-prod, chilli-backend-staging)
     # para evitar ambiguidade de DNS.
+    networks:
+      - chilli_prod_net
+      - chilli_staging_net
     networks:
       - chilli_prod_net
       - chilli_staging_net

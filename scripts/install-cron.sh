@@ -3,9 +3,10 @@
 # Chilli — instala crontab para backups e manutenção.
 #
 # Adiciona (idempotente — remove entradas antigas antes):
-#   - Backup diário às 03:00
+#   - Backup diário do Postgres às 03:00
 #   - Prune de imagens Docker na segunda às 04:00
-#   - Renew de certs anualmente (1/jan às 05:00)
+#   - Renew do cert Let's Encrypt no dia 1 de cada mês às 05:00
+#     (envia SIGHUP ao nginx-prod para recarregar; sem reiniciar Docker)
 #
 # Uso:  sudo ./scripts/install-cron.sh
 # ============================================================================
@@ -31,8 +32,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # Prune de imagens Docker antigas (seg 04:00).
 0 4 * * 1   root   docker image prune -af --filter "until=168h" >> /srv/chilli/logs/prune.log 2>&1
 
-# Renew de certs self-signed (1/jan às 05:00). Substitua pelo certbot se virar domínio.
-0 5 1 1 *   root   /srv/chilli/app/infra/generate-certs.sh $(curl -s -m 3 ifconfig.me 2>/dev/null || echo "127.0.0.1") && /usr/bin/systemctl restart docker  >> /srv/chilli/logs/renew.log 2>&1 || true
+# Renew do cert Let's Encrypt (dia 1/mês às 05:00).
+# O script emite o cert e dá SIGHUP no chilli-nginx-prod para recarregar.
+0 5 1 * *   root   /srv/chilli/app/scripts/renew-letsencrypt.sh >> /srv/chilli/logs/renew.log 2>&1
 EOF
 
 install -m 644 "$TMP" "$CRON_FILE"

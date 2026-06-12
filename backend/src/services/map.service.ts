@@ -15,6 +15,8 @@ import {
   listMaps,
   activateMap,
   deactivateActiveMap,
+  updateMapName,
+  deleteMap,
   type CreateMapInput,
 } from '../database/repositories/map.repo.js';
 import { NotFoundError, ValidationError } from '../utils/errors.js';
@@ -87,6 +89,45 @@ export async function deactivateActiveRoomMap(
 ): Promise<void> {
   await assertIsMaster(pool, roomId, masterId);
   await deactivateActiveMap(pool, roomId);
+}
+
+/** Renomeia um mapa (mestre). */
+export async function renameRoomMap(
+  pool: Pool,
+  roomId: string,
+  mapId: string,
+  masterId: string,
+  newName: string,
+): Promise<RoomMap> {
+  await assertIsMaster(pool, roomId, masterId);
+  const trimmed = newName?.trim() ?? '';
+  if (trimmed.length < 1 || trimmed.length > MAX_NAME) {
+    throw new ValidationError(`Nome do mapa deve ter entre 1 e ${MAX_NAME} caracteres`);
+  }
+  const exists = await findMapById(pool, mapId);
+  if (!exists || exists.roomId !== roomId) {
+    throw new NotFoundError('Mapa não encontrado nesta sala');
+  }
+  const updated = await updateMapName(pool, mapId, trimmed);
+  if (!updated) throw new NotFoundError('Mapa não encontrado');
+  return updated;
+}
+
+/** Deleta um mapa (mestre). Retorna a imageUrl para limpeza do disco. */
+export async function deleteRoomMap(
+  pool: Pool,
+  roomId: string,
+  mapId: string,
+  masterId: string,
+): Promise<string> {
+  await assertIsMaster(pool, roomId, masterId);
+  const exists = await findMapById(pool, mapId);
+  if (!exists || exists.roomId !== roomId) {
+    throw new NotFoundError('Mapa não encontrado nesta sala');
+  }
+  const deleted = await deleteMap(pool, mapId);
+  if (!deleted) throw new NotFoundError('Mapa não encontrado');
+  return deleted.imageUrl;
 }
 
 /** Garante que o usuário pode ver o mapa ativo (membro da sala). */

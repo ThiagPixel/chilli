@@ -2,17 +2,18 @@
  * Room — página da mesa.
  *
  * Mobile-first: BottomNav troca entre abas (chat, dados, mapa, jogadores, ficha).
- * Desktop: usa a mesma estrutura, com largura maior; o layout em duas
- * colunas (chat | sidebar) entra na fase 5.
+ * Desktop: usa a mesma estrutura, com largura maior; o layout em
+ * três colunas (chat | players | history).
  *
- * Stub: alterna pelo `?tab=` da URL. A lógica de join via Socket.IO
- * e a sincronização do RoomState entram na fase 5.
+ * O histórico de rolagens vive num painel persistente (sidebar
+ * desktop) ou bottom-sheet (FAB mobile) — não some mais ao
+ * trocar de aba.
  */
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { BottomNav, useRoomTabFromUrl } from '@/components/layout';
 import { ChatPanel } from '@/components/chat';
-import { DiceRoller } from '@/components/dice';
+import { DiceRoller, DiceHistoryFab, DiceHistorySidebar } from '@/components/dice';
 import { MapView } from '@/components/map';
 import { PlayerList } from '@/components/players';
 import { SheetPage } from '@/pages/Sheet';
@@ -68,6 +69,7 @@ export function RoomPage() {
           display: 'flex',
           flexDirection: 'column',
           minHeight: 0,
+          minWidth: 0,
         }}
       >
         <Box sx={{ flex: 1, display: 'flex', minHeight: 0 }}>
@@ -76,12 +78,11 @@ export function RoomPage() {
         {isDesktop ? null : <BottomNav active={tab} onChange={setTab} />}
       </Box>
 
-      {/* Stub: em desktop, sidebar com lista compacta de jogadores.
-          Implementação completa entra na fase 5. */}
+      {/* Sidebar desktop: jogadores. */}
       {isDesktop ? (
         <Box
           sx={{
-            width: 320,
+            width: 280,
             flexShrink: 0,
             display: 'flex',
             flexDirection: 'column',
@@ -94,6 +95,12 @@ export function RoomPage() {
           <PlayerList />
         </Box>
       ) : null}
+
+      {/* Sidebar desktop: histórico de rolagens (persistente). */}
+      <DiceHistorySidebar width={300} />
+
+      {/* FAB mobile: abre o histórico em bottom-sheet. */}
+      <DiceHistoryFab />
     </Box>
   );
 }

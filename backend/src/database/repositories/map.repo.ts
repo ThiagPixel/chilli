@@ -134,3 +134,30 @@ export async function deactivateActiveMap(exec: Executor, roomId: string): Promi
   );
   return res.rowCount ?? 0;
 }
+
+/** Renomeia um mapa. Retorna a linha atualizada ou `null` se não existir. */
+export async function updateMapName(
+  exec: Executor,
+  mapId: string,
+  name: string,
+): Promise<RoomMap | null> {
+  const res = await exec.query<MapRow>(
+    `UPDATE maps
+        SET name = $2, updated_at = now()
+      WHERE id = $1
+      RETURNING id, room_id, name, image_url, width, height, is_active, created_at, updated_at`,
+    [mapId, name],
+  );
+  return res.rows[0] ? mapRow(res.rows[0]) : null;
+}
+
+/** Deleta um mapa. Retorna a linha removida (com a `imageUrl` para limpeza do disco) ou `null`. */
+export async function deleteMap(exec: Executor, mapId: string): Promise<RoomMap | null> {
+  const res = await exec.query<MapRow>(
+    `DELETE FROM maps
+      WHERE id = $1
+      RETURNING id, room_id, name, image_url, width, height, is_active, created_at, updated_at`,
+    [mapId],
+  );
+  return res.rows[0] ? mapRow(res.rows[0]) : null;
+}

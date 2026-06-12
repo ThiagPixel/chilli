@@ -15,6 +15,9 @@
  * Em >= md (900px), a BottomNav dá lugar a um Drawer persistente e o
  * conteúdo ganha largura máxima. Mantém o app utilizável em desktop
  * sem reescrever componentes.
+ *
+ * O `ConnectionBanner` é sticky logo abaixo do TopBar para feedback
+ * de reconexão (Feature #2).
  */
 import { Box, Toolbar } from '@mui/material';
 import { useState, type ReactNode } from 'react';
@@ -23,6 +26,7 @@ import { TopBar } from './TopBar';
 import { Drawer } from './Drawer';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { getTitleForPath } from '@/routes/paths';
+import { ConnectionBanner } from '@/components/ui';
 
 export interface AppShellProps {
   /** Sobrescreve o outlet quando quiser conteúdo custom (ex.: tela cheia). */
@@ -42,6 +46,7 @@ export function AppShell({ children }: AppShellProps) {
         {...(subtitle !== undefined ? { subtitle } : {})}
         onMenuClick={() => setDrawerOpen(true)}
       />
+      <ConnectionBanner />
       <Drawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}

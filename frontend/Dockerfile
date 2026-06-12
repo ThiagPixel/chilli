@@ -17,6 +17,17 @@ RUN npm ci --no-audit --no-fund
 COPY tsconfig.json vite.config.ts index.html ./
 COPY public ./public
 COPY src ./src
+
+# VITE_API_URL deve ser passado pelo compose no build.
+#   - '' (vazio, default): chamadas vão para o mesmo origin da SPA,
+#     e o nginx reverse-proxia /api e /socket.io. É o que usamos em
+#     prod e staging, onde nginx e backend estão no mesmo host.
+#   - 'https://api.chilliplay.com.br': chamadas vão para um host
+#     diferente (CDN / split origin). NÃO estamos nessa topologia
+#     ainda; mexer aqui exige também ajustar nginx + CORS.
+ARG VITE_API_URL=""
+ENV VITE_API_URL=$VITE_API_URL
+
 RUN npm run build
 
 # ---------- runtime ----------
