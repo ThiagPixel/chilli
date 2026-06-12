@@ -13,15 +13,16 @@
  *   - `/r 2d6+3` ou `/d 2d6+3` → `useDice().roll(expr)` (vai pro histórico de dados)
  *   - qualquer outro texto → `useChat().send(body)`
  *
- * Os eventos `chat:message` e `dice:result` (chegando do socket) já
- * populam as stores; o autor recebe o eco no broadcast.
+ * Pull-to-refresh + botão "Atualizar" (desktop) via `RefreshableScroller`
+ * chamam `useChat().refresh()`.
  */
-import { useMemo } from 'react';
-import { Box, Stack } from '@mui/material';
+import { useMemo, useRef } from 'react';
+import { Stack } from '@mui/material';
 import { useChat } from '@/hooks/useChat';
 import { useDice } from '@/hooks/useDice';
 import { useAuth } from '@/hooks/useAuth';
 import { usePlayersStore } from '@/stores/players.store';
+import { RefreshableScroller } from '@/components/ui';
 import { MessageList } from './MessageList';
 import { Composer } from './Composer';
 import { parseSimpleExpression } from '@/components/dice/diceParser';
@@ -32,7 +33,7 @@ export interface ChatPanelProps {
 }
 
 export function ChatPanel({ roomCode }: ChatPanelProps) {
-  const { messages, send } = useChat();
+  const { messages, send, refresh } = useChat();
   const { roll } = useDice();
   const { user } = useAuth();
   const members = usePlayersStore((s) => s.members);
@@ -61,13 +62,22 @@ export function ChatPanel({ roomCode }: ChatPanelProps) {
 
   const visible = useMemo<Message[]>(() => messages.filter(Boolean), [messages]);
 
+  // Ref do scroller do MessageList — o RefreshableScroller anexa
+  // os handlers de touch nele.
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+
   return (
     <Stack sx={{ flex: 1, minHeight: 0 }} data-room={roomCode}>
-      <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>
+      <RefreshableScroller
+        onRefresh={refresh}
+        refreshLabel="Atualizar chat"
+        scrollerRef={scrollerRef}
+      >
         <MessageList
           messages={visible}
           authors={authors}
           currentUserId={user?.id ?? null}
+          scrollerRef={scrollerRef}
           footer={
             <Composer
               onSend={handleSend}
@@ -75,7 +85,7 @@ export function ChatPanel({ roomCode }: ChatPanelProps) {
             />
           }
         />
-      </Box>
+      </RefreshableScroller>
     </Stack>
   );
 }

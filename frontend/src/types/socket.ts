@@ -21,6 +21,8 @@ export interface RoomState {
   recentMessages: Message[];
   recentRolls: DiceRoll[];
   activeMap: RoomMap | null;
+  /** Lista completa de mapas da sala (Feature #3 — mapas múltiplos). */
+  maps: RoomMap[];
 }
 
 // =========================================================================
@@ -55,6 +57,8 @@ export interface ServerToClientEvents {
   'chat:history': (messages: Message[]) => void;
   'dice:result': (roll: DiceRoll) => void;
   'map:updated': (payload: { map: RoomMap; x: number; y: number; zoom: number }) => void;
+  /** Lista de mapas da sala (Feature #3 — enviado após upload/activate/delete/rename). */
+  'maps:list': (payload: { maps: RoomMap[] }) => void;
   error: (payload: { code: string; message: string }) => void;
 }
 
@@ -76,6 +80,9 @@ export type ChilliSocket = {
     event: E,
     listener: ServerToClientEvents[E],
   ): void;
+  /** Conecta manualmente (normalmente o `autoConnect: false` no cliente
+   *  + auto-connect no SocketContext faz isso; usado em retry). */
+  connect: () => void;
   disconnect: () => void;
   connected: boolean;
 };

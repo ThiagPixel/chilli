@@ -1,5 +1,9 @@
 /**
- * DiceRoller — botões rápidos + expressão custom + histórico.
+ * DiceRoller — botões rápidos + expressão custom.
+ *
+ * O histórico de rolagens vive em `DiceHistoryPanel` (acessível
+ * via FAB mobile ou sidebar persistente no desktop) — não
+ * duplicamos a lista aqui. A aba "Dados" é só para ROLAR.
  *
  * Layout mobile-first (390px):
  *   ┌──────────────────────────────────┐
@@ -9,9 +13,7 @@
  *   ├──────────────────────────────────┤
  *   │  Expressão custom: [____] [Rolar]│
  *   ├──────────────────────────────────┤
- *   │  Histórico (rolls, mais novo 1º) │
- *   │  <RollResult />                  │
- *   │  <RollResult />                  │
+ *   │  Atalho: histórico (link/botão)  │
  *   └──────────────────────────────────┘
  *
  * Quick roll e expressão custom chamam `useDice().roll()`, que emite
@@ -19,14 +21,11 @@
  * no store. O broadcast para os outros membros é o mesmo evento.
  */
 import { useState, type FormEvent } from 'react';
-import { Box, Button, Divider, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, Stack, TextField, Typography } from '@mui/material';
 import { useDice } from '@/hooks/useDice';
 import { useToast } from '@/hooks/useToast';
-import { usePlayersStore } from '@/stores/players.store';
 import { parseSimpleExpression } from './diceParser';
 import { ALL_DICE, DiceButton, type DiceSides } from './DiceButton';
-import { RollResult } from './RollResult';
-import { EmptyState } from '@/components/ui';
 import CasinoIcon from '@mui/icons-material/Casino';
 
 export interface DiceRollerProps {
@@ -36,7 +35,6 @@ export interface DiceRollerProps {
 export function DiceRoller({ roomCode: _roomCode }: DiceRollerProps) {
   const { rolls, roll } = useDice();
   const toast = useToast();
-  const members = usePlayersStore((s) => s.members);
   const [expression, setExpression] = useState<string>('');
 
   const parsed = parseSimpleExpression(expression);
@@ -81,8 +79,6 @@ export function DiceRoller({ roomCode: _roomCode }: DiceRollerProps) {
         </Box>
       </Box>
 
-      <Divider flexItem />
-
       {/* Custom expression */}
       <Box component="form" onSubmit={handleExpressionRoll}>
         <Typography variant="overline" color="text.secondary">
@@ -116,27 +112,12 @@ export function DiceRoller({ roomCode: _roomCode }: DiceRollerProps) {
         </Stack>
       </Box>
 
-      <Divider flexItem />
-
-      {/* Histórico */}
-      <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        <Typography variant="overline" color="text.secondary">
-          Histórico
+      <Box>
+        <Typography variant="caption" color="text.secondary">
+          {rolls.length === 0
+            ? 'Suas rolagens aparecerão no histórico da mesa (FAB no mobile ou sidebar no desktop).'
+            : `${rolls.length} ${rolls.length === 1 ? 'rolagem' : 'rolagens'} no histórico da mesa.`}
         </Typography>
-        {rolls.length === 0 ? (
-          <EmptyState
-            icon={<CasinoIcon fontSize="inherit" />}
-            title="Nenhuma rolagem ainda"
-            description="As rolagens da mesa aparecerão aqui em tempo real."
-          />
-        ) : (
-          <Stack spacing={1} sx={{ mt: 1 }}>
-            {rolls.map((r) => {
-              const author = members.find((m) => m.user.id === r.userId)?.user;
-              return <RollResult key={r.id} roll={r} {...(author ? { author } : {})} />;
-            })}
-          </Stack>
-        )}
       </Box>
     </Stack>
   );

@@ -165,7 +165,26 @@ git pull --ff-only origin main
 ./scripts/deploy.sh prod
 ```
 
-### 9. Ativar crons
+### 9. Emitir cert Let's Encrypt (uma vez)
+
+```bash
+# Como root — depois que o DNS A chilliplay.com.br e stg.chilliplay.com.br
+# já apontam para o VPS_IP e o deploy de prod já está no ar.
+ssh root@<VPS_IP>
+cd /srv/chilli/app
+sudo ./infra/issue-letsencrypt.sh
+docker kill -s HUP chilli-nginx-prod
+
+# Verificar: o cert cobre os dois domínios?
+openssl x509 -in /etc/letsencrypt/live/chilliplay/fullchain.pem -noout -subject -ext subjectAltName
+# Esperado: subject com CN e SAN listando chilliplay.com.br e stg.chilliplay.com.br
+
+# Smoke test HTTPS:
+curl -vI https://chilliplay.com.br/api/health 2>&1 | grep -E 'subject|issuer'
+# Esperado: subject CN = chilliplay.com.br (Let's Encrypt R3)
+```
+
+### 10. Ativar crons
 
 ```bash
 # Como root na VPS.
