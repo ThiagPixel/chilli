@@ -16,7 +16,7 @@ import { getUserId } from '../auth.js';
 import { pool } from '../room-state.js';
 import { assertIsMaster } from '../../services/room.service.js';
 import { logger } from '../../utils/logger.js';
-import { AppError, ValidationError, NotFoundError } from '../../utils/errors.js';
+import { AppError, NotFoundError } from '../../utils/errors.js';
 
 export function registerTurnHandlers(io: Server, socket: Socket): void {
   socket.on('turn:start', async (payload) => {
@@ -70,11 +70,11 @@ export function registerTurnHandlers(io: Server, socket: Socket): void {
       }
       await assertIsMaster(p, room.id, userId);
 
-      const updated = await setCurrentTurn(p, room.id, null);
-      if (updated.currentTurnUserId === null) {
-        // Só broadcasta se havia turno (evita ruído ao clicar "encerrar" sem ter turno).
-        io.to(code).emit('turn:changed', { currentTurnUserId: null, by: userId });
-      }
+      // Só broadcasta se havia turno ativo — evita ruído em cliques
+      // idempotentes do mestre ("encerrar" sem ter turno).
+      if (room.currentTurnUserId === null) return;
+      await setCurrentTurn(p, room.id, null);
+      io.to(code).emit('turn:changed', { currentTurnUserId: null, by: userId });
     } catch (err) {
       if (err instanceof AppError) {
         socket.emit('error', { code: err.code, message: err.message });
@@ -84,7 +84,3 @@ export function registerTurnHandlers(io: Server, socket: Socket): void {
     }
   });
 }
-
-// Re-exporta o helper para o `room.handler` (auto-clear on leave).
-export { setCurrentTurn };
-export { ValidationError };

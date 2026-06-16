@@ -57,6 +57,7 @@ export function ConnectionBanner({
   const [disconnectedSince, setDisconnectedSince] = useState<number | null>(
     shouldShow ? Date.now() : null,
   );
+  const [now, setNow] = useState<number>(() => Date.now());
   useEffect(() => {
     if (!shouldShow) {
       setDisconnectedSince(null);
@@ -65,8 +66,19 @@ export function ConnectionBanner({
     }
   }, [shouldShow, disconnectedSince]);
 
+  // Agenda um re-render quando os `warnAfterMs` se completam para
+  // promover a severidade de "warning" para "error". Sem esse tick,
+  // `showWarn` só muda se outra parte da árvore re-renderizar.
+  useEffect(() => {
+    if (disconnectedSince === null) return undefined;
+    const remaining = warnAfterMs - (now - disconnectedSince);
+    if (remaining <= 0) return undefined;
+    const t = setTimeout(() => setNow(Date.now()), remaining);
+    return () => clearTimeout(t);
+  }, [now, disconnectedSince, warnAfterMs]);
+
   const showWarn =
-    disconnectedSince !== null && Date.now() - disconnectedSince >= warnAfterMs;
+    disconnectedSince !== null && now - disconnectedSince >= warnAfterMs;
 
   const handleRetry = (): void => {
     if (onRetry) {

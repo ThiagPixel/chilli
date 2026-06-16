@@ -22,7 +22,7 @@ import {
 } from '../database/repositories/mapToken.repo.js';
 import { findMapById } from '../database/repositories/map.repo.js';
 import { assertIsMaster, assertIsMember } from './room.service.js';
-import { ForbiddenError, NotFoundError, ValidationError } from '../utils/errors.js';
+import { NotFoundError, ValidationError } from '../utils/errors.js';
 import type { MapToken } from '../types/domain.js';
 
 const LABEL_RE = /^[A-Za-z0-9À-ÿ]{1,3}$/;

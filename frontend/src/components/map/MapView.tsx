@@ -44,7 +44,6 @@ import { mapService, mapTokenService } from '@/services';
 import { useToast } from '@/hooks/useToast';
 import { RefreshableScroller } from '@/components/ui';
 import { useAuth } from '@/hooks/useAuth';
-import { useRoom } from '@/hooks/useRoom';
 
 export interface MapViewProps {
   roomCode: string;
@@ -62,14 +61,12 @@ export function MapView({ roomCode, isMaster }: MapViewProps) {
   const { socket } = useSocketContext();
   const toast = useToast();
   const { user } = useAuth();
-  const { room } = useRoom();
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [isAddingToken, setIsAddingToken] = useState<boolean>(false);
 
   const turnHolder = currentTurnUserId
     ? members.find((m) => m.user.id === currentTurnUserId)?.user ?? null
     : null;
-  const viewerIsMaster = user?.id === room?.masterId;
   const viewerIsTurnHolder = user !== null && user.id === currentTurnUserId;
 
   const handleUpload = async (file: File): Promise<void> => {
@@ -142,7 +139,7 @@ export function MapView({ roomCode, isMaster }: MapViewProps) {
             variant={viewerIsTurnHolder ? 'filled' : 'outlined'}
             sx={{ fontWeight: 600 }}
           />
-          {viewerIsMaster ? (
+          {isMaster ? (
             <Button size="small" variant="text" onClick={endTurn}>
               Encerrar turno
             </Button>
@@ -179,7 +176,7 @@ export function MapView({ roomCode, isMaster }: MapViewProps) {
         </RefreshableScroller>
 
         {/* Botão flutuante de adicionar token (mestre only). */}
-        {viewerIsMaster && active ? (
+        {isMaster && active ? (
           <Tooltip title="Adicionar token NPC" placement="left">
             <Box sx={{ position: 'absolute', right: 8, top: 8, zIndex: 2 }}>
               <Button
