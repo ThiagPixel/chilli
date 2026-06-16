@@ -5,6 +5,9 @@
  *   - O próprio usuário no topo (com chip "você").
  *   - Demais membros, mestre primeiro.
  *   - Ação "Minha ficha" para si; "Ficha" para outros (v2, fora do MVP).
+ *   - Ação "Iniciar turno" quando o viewer é o mestre — passa o turno
+ *     para aquele jogador. Jogador com turno ativo recebe destaque no
+ *     `PlayerBadge` (border primary).
  *
  * `members` é populado via Socket.IO (`room:state.members` +
  * eventos `room:user_joined` / `room:user_left`) e mantido em
@@ -12,12 +15,15 @@
  * defesa contra race conditions.
  */
 import { useCallback, useMemo } from 'react';
-import { Button, Stack, Typography } from '@mui/material';
+import { Button, Stack, Tooltip, Typography } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { usePlayersStore } from '@/stores/players.store';
+import { useTurnStore } from '@/stores/turn.store';
 import { useAuth } from '@/hooks/useAuth';
 import { useRoom } from '@/hooks/useRoom';
+import { useSocket } from '@/hooks/useSocket';
 import { useToast } from '@/hooks/useToast';
 import { PlayerBadge } from './PlayerBadge';
 import { EmptyState, RefreshableScroller } from '@/components/ui';
@@ -36,8 +42,11 @@ export function PlayerList({ members: membersProp, onOpenSheet }: PlayerListProp
   const setStoreMembers = usePlayersStore((s) => s.set);
   const { user } = useAuth();
   const { room } = useRoom();
+  const { socket } = useSocket();
   const toast = useToast();
+  const currentTurnUserId = useTurnStore((s) => s.currentTurnUserId);
   const members = membersProp ?? storeMembers;
+  const viewerIsMaster = Boolean(user && room && user.id === room.masterId);
 
   // Ordena: mestre primeiro, depois o próprio usuário, depois o resto (alfabético).
   const sorted = useMemo(() => {
@@ -127,20 +136,38 @@ export function PlayerList({ members: membersProp, onOpenSheet }: PlayerListProp
           <Stack spacing={1} sx={{ py: 1 }}>
             {sorted.map((m) => {
               const isMe = Boolean(user && m.user.id === user.id);
+              const isTurnHolder = m.user.id === currentTurnUserId;
+              const canStartTurn = viewerIsMaster && !isMe && !isTurnHolder;
               return (
                 <PlayerBadge
                   key={m.user.id}
                   user={m.user}
                   role={m.role}
+                  isTurnHolder={isTurnHolder}
                   right={
-                    <Button
-                      size="small"
-                      variant="text"
-                      startIcon={<DescriptionIcon />}
-                      onClick={() => handleOpen(m.user.id, isMe)}
-                    >
-                      {isMe ? 'Minha ficha' : 'Ficha'}
-                    </Button>
+                    <Stack direction="row" spacing={0.5}>
+                      {canStartTurn ? (
+                        <Tooltip title="Iniciar turno deste jogador" placement="top">
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="primary"
+                            startIcon={<PlayArrowIcon />}
+                            onClick={() => socket.emit('turn:start', { targetUserId: m.user.id })}
+                          >
+                            Turno
+                          </Button>
+                        </Tooltip>
+                      ) : null}
+                      <Button
+                        size="small"
+                        variant="text"
+                        startIcon={<DescriptionIcon />}
+                        onClick={() => handleOpen(m.user.id, isMe)}
+                      >
+                        {isMe ? 'Minha ficha' : 'Ficha'}
+                      </Button>
+                    </Stack>
                   }
                 />
               );

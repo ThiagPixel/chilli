@@ -4,7 +4,7 @@
  *
  * O frontend nunca envia payloads "soltos" — usa as interfaces daqui.
  */
-import type { DiceRoll, Message, Room, RoomMap, RoomMember, User } from './domain';
+import type { DiceRoll, MapToken, Message, Room, RoomMap, RoomMember, User } from './domain';
 
 // =========================================================================
 // Helpers
@@ -23,6 +23,10 @@ export interface RoomState {
   activeMap: RoomMap | null;
   /** Lista completa de mapas da sala (Feature #3 — mapas múltiplos). */
   maps: RoomMap[];
+  /** Tokens da sala (todos os mapas). O cliente filtra pelo mapId ativo. */
+  tokens: MapToken[];
+  /** UUID do user com o turno ativo; null = sem turno. */
+  currentTurnUserId: string | null;
 }
 
 // =========================================================================
@@ -43,6 +47,9 @@ export interface ClientToServerEvents {
     ack: (res: AckResult<DiceRoll>) => void,
   ) => void;
   'map:state': (payload: { mapId: string; x: number; y: number; zoom: number }) => void;
+  'token:move': (payload: { tokenId: string; x: number; y: number }) => void;
+  'turn:start': (payload: { targetUserId: string }) => void;
+  'turn:end': (payload: Record<string, never>) => void;
   'presence:ping': (payload: Record<string, never>) => void;
 }
 
@@ -59,6 +66,14 @@ export interface ServerToClientEvents {
   'map:updated': (payload: { map: RoomMap; x: number; y: number; zoom: number }) => void;
   /** Lista de mapas da sala (Feature #3 — enviado após upload/activate/delete/rename). */
   'maps:list': (payload: { maps: RoomMap[] }) => void;
+  /** Token criado (broadcast inclui o autor). */
+  'token:created': (payload: { token: MapToken }) => void;
+  /** Token movido (broadcast NÃO inclui o autor — ele já moveu otimista). */
+  'token:moved': (payload: { tokenId: string; x: number; y: number; by: string }) => void;
+  /** Token removido. */
+  'token:removed': (payload: { tokenId: string }) => void;
+  /** Turno ativo mudou. `currentTurnUserId = null` significa "sem turno". */
+  'turn:changed': (payload: { currentTurnUserId: string | null; by?: string }) => void;
   error: (payload: { code: string; message: string }) => void;
 }
 

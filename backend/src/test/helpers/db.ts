@@ -6,6 +6,7 @@ import type { Pool } from 'pg';
 import { getPool, closePool } from '../../database/connection.js';
 
 const TABLES = [
+  'map_tokens',
   'maps',
   'characters',
   'messages',

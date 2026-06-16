@@ -26,8 +26,10 @@ import { useChatStore } from '@/stores/chat.store';
 import { useDiceStore } from '@/stores/dice.store';
 import { usePlayersStore } from '@/stores/players.store';
 import { useMapStore } from '@/stores/map.store';
+import { useTokensStore } from '@/stores/tokens.store';
+import { useTurnStore } from '@/stores/turn.store';
 import { useToast } from '@/hooks/useToast';
-import type { AckResult, RoomState, User, RoomMember } from '@/types';
+import type { AckResult, RoomState, User, RoomMember, MapToken } from '@/types';
 import type { Room } from '@/types';
 
 export interface RoomContextValue {
@@ -66,6 +68,8 @@ export function RoomProvider({ children }: RoomProviderProps) {
     useMapStore.getState().setMaps(state.maps ?? []);
     // `setActive(null)` zera a view mas preserva a lista de mapas.
     useMapStore.getState().setActive(state.activeMap);
+    useTokensStore.getState().set(state.tokens ?? []);
+    useTurnStore.getState().set(state.currentTurnUserId ?? null);
   }, []);
 
   // Cleanup universal: zera stores locais.
@@ -77,6 +81,8 @@ export function RoomProvider({ children }: RoomProviderProps) {
     useChatStore.getState().clear();
     useDiceStore.getState().clear();
     useMapStore.getState().reset();
+    useTokensStore.getState().clear();
+    useTurnStore.getState().clear();
   }, []);
 
   // ---- JOIN ------------------------------------------------------------
@@ -211,6 +217,18 @@ export function RoomProvider({ children }: RoomProviderProps) {
         useMapStore.getState().setActiveKeepView(nextActive);
       }
     };
+    const onTokenCreated = (payload: { token: MapToken }): void => {
+      useTokensStore.getState().add(payload.token);
+    };
+    const onTokenMoved = (payload: { tokenId: string; x: number; y: number; by: string }): void => {
+      useTokensStore.getState().update(payload.tokenId, { x: payload.x, y: payload.y });
+    };
+    const onTokenRemoved = (payload: { tokenId: string }): void => {
+      useTokensStore.getState().remove(payload.tokenId);
+    };
+    const onTurnChanged = (payload: { currentTurnUserId: string | null; by?: string }): void => {
+      useTurnStore.getState().set(payload.currentTurnUserId);
+    };
     const onError = (err: { code: string; message: string }): void => {
       toast.error(err.message || err.code);
     };
@@ -221,6 +239,10 @@ export function RoomProvider({ children }: RoomProviderProps) {
     socket.on('dice:result', onDiceResult);
     socket.on('map:updated', onMapUpdated);
     socket.on('maps:list', onMapsList);
+    socket.on('token:created', onTokenCreated);
+    socket.on('token:moved', onTokenMoved);
+    socket.on('token:removed', onTokenRemoved);
+    socket.on('turn:changed', onTurnChanged);
     socket.on('error', onError);
 
     return () => {
@@ -230,6 +252,10 @@ export function RoomProvider({ children }: RoomProviderProps) {
       socket.off('dice:result', onDiceResult);
       socket.off('map:updated', onMapUpdated);
       socket.off('maps:list', onMapsList);
+      socket.off('token:created', onTokenCreated);
+      socket.off('token:moved', onTokenMoved);
+      socket.off('token:removed', onTokenRemoved);
+      socket.off('turn:changed', onTurnChanged);
       socket.off('error', onError);
     };
   }, [socket, isJoined, toast]);

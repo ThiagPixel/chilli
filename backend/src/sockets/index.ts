@@ -13,6 +13,8 @@ import { registerRoomHandlers } from './handlers/room.handler.js';
 import { registerChatHandlers } from './handlers/chat.handler.js';
 import { registerDiceHandlers } from './handlers/dice.handler.js';
 import { registerMapHandlers } from './handlers/map.handler.js';
+import { registerMapTokenHandlers } from './handlers/mapToken.handler.js';
+import { registerTurnHandlers } from './handlers/turn.handler.js';
 import { setIO } from './ioRef.js';
 import { logger } from '../utils/logger.js';
 import type {
@@ -62,6 +64,8 @@ export function attachSocketServer(httpServer: HttpServer): ChilliIo {
     registerChatHandlers(io, socket);
     registerDiceHandlers(io, socket);
     registerMapHandlers(io, socket);
+    registerMapTokenHandlers(io, socket);
+    registerTurnHandlers(io, socket);
   });
 
   logger.info('socket.io anexado');

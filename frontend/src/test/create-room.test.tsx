@@ -62,6 +62,8 @@ const fakeRoom: Room = {
   description: null,
   masterId: fakeUser.id,
   status: 'active',
+  currentTurnUserId: null,
+  currentTurnStartedAt: null,
   createdAt: '2026-06-11T00:00:00.000Z',
   updatedAt: '2026-06-11T00:00:00.000Z',
   closedAt: null,
