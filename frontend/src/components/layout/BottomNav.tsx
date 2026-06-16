@@ -5,6 +5,10 @@
  *
  * Mostra um pequeno dot vermelho no "Chat" quando o socket está
  * desconectado (Feature #2: indicador de status no mobile).
+ *
+ * Auth-aware: o dot só aparece quando o usuário está autenticado
+ * e o socket perdeu conexão. Antes do login, o socket está
+ * disconnected por design — não há motivo para sinalizar falha.
  */
 import { Box, BottomNavigation, BottomNavigationAction, Paper } from '@mui/material';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
@@ -14,6 +18,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import DescriptionIcon from '@mui/icons-material/Description';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSocketContext } from '@/contexts/SocketContext';
+import { useAuth } from '@/hooks/useAuth';
 
 export type RoomTab = 'chat' | 'dice' | 'map' | 'players' | 'sheet';
 
@@ -32,6 +37,10 @@ const ITEMS: Array<{ value: RoomTab; label: string; icon: React.ReactNode }> = [
 
 export function BottomNav({ active, onChange }: BottomNavProps) {
   const { isConnected } = useSocketContext();
+  const { user, isLoading: authLoading } = useAuth();
+  // Espelha a regra do `ConnectionBanner`: o dot só aparece em
+  // desconexões inesperadas durante uso autenticado.
+  const showOfflineDot = !authLoading && user !== null && !isConnected;
   // Mantém a prop `value` controlada para acessibilidade.
   return (
     <Paper
@@ -61,7 +70,7 @@ export function BottomNav({ active, onChange }: BottomNavProps) {
             icon={
               <Box sx={{ position: 'relative', display: 'inline-flex' }}>
                 {item.icon}
-                {item.value === 'chat' && !isConnected ? (
+                {item.value === 'chat' && showOfflineDot ? (
                   <Box
                     data-testid="bottom-nav-offline-dot"
                     sx={{

@@ -10,6 +10,13 @@
  *   - Se ficar desconectado por mais de 10s, o banner ganha um
  *     destaque ("Sem conexão — tentativas a cada 5s").
  *
+ * Auth-aware: o banner é suprimido quando o usuário não está
+ * autenticado. O `SocketContext` desconecta intencionalmente o
+ * socket quando `user === null` (auto-disconnect no logout /
+ * pre-login), e mostrar "Sem conexão" nesse estado era confuso
+ * para o usuário. Só mostramos o alerta em desconexões
+ * inesperadas durante uso autenticado.
+ *
  * Usa o `useSocketContext` para inspecionar `isConnected` quando
  * não receber a prop. Posicionado no topo, abaixo do TopBar
  * (via slot reservado no AppShell).
@@ -18,6 +25,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Box, Button, Collapse } from '@mui/material';
 import WifiOffIcon from '@mui/icons-material/WifiOff';
 import { useSocketContext } from '@/contexts/SocketContext';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface ConnectionBannerProps {
   /** Se passado, sobrescreve o `isConnected` do contexto. */
@@ -34,19 +42,28 @@ export function ConnectionBanner({
   warnAfterMs = 10_000,
 }: ConnectionBannerProps) {
   const { socket, isConnected: ctxConnected } = useSocketContext();
+  const { user, isLoading: authLoading } = useAuth();
   const connected = connectedProp ?? ctxConnected;
 
+  // Só mostramos o alerta em desconexões inesperadas durante uso
+  // autenticado. Antes do login (ou durante `me()` ainda em flight)
+  // o socket está disconnected por design — não é falha de rede.
+  const shouldShow = !authLoading && user !== null && !connected;
+
   // Mede há quanto tempo está desconectado para mudar a severidade.
+  // Só conta tempo quando o banner *deveria* estar visível (autenticado
+  // e desconectado) — assim o `warnAfterMs` não acumula durante o
+  // pre-login e dispara um "offline" falso ao entrar.
   const [disconnectedSince, setDisconnectedSince] = useState<number | null>(
-    connected ? null : Date.now(),
+    shouldShow ? Date.now() : null,
   );
   useEffect(() => {
-    if (connected) {
+    if (!shouldShow) {
       setDisconnectedSince(null);
     } else if (disconnectedSince === null) {
       setDisconnectedSince(Date.now());
     }
-  }, [connected, disconnectedSince]);
+  }, [shouldShow, disconnectedSince]);
 
   const showWarn =
     disconnectedSince !== null && Date.now() - disconnectedSince >= warnAfterMs;
@@ -62,7 +79,7 @@ export function ConnectionBanner({
   };
 
   return (
-    <Collapse in={!connected} unmountOnExit>
+    <Collapse in={shouldShow} unmountOnExit>
       <Box
         sx={{
           position: 'sticky',
