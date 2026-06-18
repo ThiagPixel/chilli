@@ -13,6 +13,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
     "db:migrate": "tsx --env-file=.env src/database/migrate.ts",
+    "db:migrate:prod": "tsx src/database/migrate.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
