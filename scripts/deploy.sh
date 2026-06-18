@@ -139,19 +139,12 @@ docker compose -p "chilli-$ENV" \
 log "aguardando serviços healthy..."
 wait_healthy "chilli-$ENV" "$COMPOSE_FILE"
 
-# 6. Roda migrations do banco antes do smoke test. Sem isso, uma nova
-# migration (ex.: 0002_*.sql) só roda quando alguém lembra de executar
-# `npm run db:migrate` na mão — e o backend sobe sem as tabelas novas,
-# quebrando endpoints em runtime. `db:migrate:prod` é a variante sem
-# --env-file=.env (o container já recebe as envs via compose env_file).
-log "rodando migrations..."
-if ! docker exec "chilli-backend-$ENV" npm run db:migrate:prod 2>&1 | tee -a "$LOG_FILE"; then
-  log "ERRO: migrations falharam. Veja logs do backend."
-  docker compose -p "chilli-$ENV" -f "$COMPOSE_FILE" logs --tail=50 backend
-  exit 1
-fi
+# NOTA: migrations são aplicadas automaticamente pelo backend no boot
+# (`server.ts` chama `runMigrations()` antes de subir o servidor HTTP).
+# Se uma migration nova quebrar o boot, o container reinicia — visível
+# em `docker logs`. Não precisamos rodar manualmente aqui.
 
-# 7. Smoke test em duas pontas: backend (/api/health) e frontend (HTML).
+# 6. Smoke test em duas pontas: backend (/api/health) e frontend (HTML).
 # Retry com backoff porque o nginx às vezes precisa de ~5s depois do
 # container ficar healthy para servir HTTPS com o cert recém-montado
 # (race que já nos pegou em 2026-06-16).
