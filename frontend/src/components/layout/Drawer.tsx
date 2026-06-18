@@ -40,7 +40,7 @@ export function Drawer({ open, onClose, variant = 'temporary' }: DrawerProps) {
           Chilli
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          O WhatsApp dos RPGs
+          A sua mesa, do nosso jeito, à mão
         </Typography>
       </Box>
       <Divider />
