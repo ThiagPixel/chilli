@@ -6,4 +6,5 @@ export * from './room.service';
 export * from './chat.service';
 export * from './dice.service';
 export * from './map.service';
+export * from './mapToken.service';
 export * from './sheet.service';

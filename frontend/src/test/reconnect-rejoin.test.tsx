@@ -74,6 +74,8 @@ const { fakeRoom: hoistedRoom, fakeUser: hoistedUser } = vi.hoisted(() => ({
     description: null,
     masterId: 'user-1',
     status: 'active' as const,
+    currentTurnUserId: null,
+    currentTurnStartedAt: null,
     createdAt: '2026-06-11T00:00:00.000Z',
     updatedAt: '2026-06-11T00:00:00.000Z',
     closedAt: null,
@@ -112,6 +114,8 @@ const fakeRoom: Room = {
   description: null,
   masterId: 'user-1',
   status: 'active',
+  currentTurnUserId: null,
+  currentTurnStartedAt: null,
   createdAt: '2026-06-11T00:00:00.000Z',
   updatedAt: '2026-06-11T00:00:00.000Z',
   closedAt: null,
@@ -157,6 +161,8 @@ function makeRoomState(): RoomState {
     ],
     activeMap: fakeMap,
     maps: [fakeMap],
+    tokens: [],
+    currentTurnUserId: null,
   };
 }
 

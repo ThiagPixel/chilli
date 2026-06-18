@@ -3,3 +3,4 @@ export * from './AppShell';
 export * from './TopBar';
 export * from './BottomNav';
 export * from './Drawer';
+export * from './RoomTabsBar';

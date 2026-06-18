@@ -5,7 +5,7 @@
  *
  * Alinhados à modelagem aprovada (sem rollId em Message, role master/player, etc.).
  */
-import type { Message, DiceRoll, Room, RoomMember, User, Map } from './domain.js';
+import type { Message, DiceRoll, Room, RoomMember, User, Map, MapToken } from './domain.js';
 
 // =========================================================================
 // Cliente → Servidor
@@ -19,6 +19,9 @@ export interface ClientToServerEvents {
     ack: (res: AckResult<DiceRoll>) => void,
   ) => void;
   'map:state': (payload: { mapId: string; x: number; y: number; zoom: number }) => void;
+  'token:move': (payload: { tokenId: string; x: number; y: number }) => void;
+  'turn:start': (payload: { targetUserId: string }) => void;
+  'turn:end': (payload: Record<string, never>) => void;
   'presence:ping': (payload: Record<string, never>) => void;
 }
 
@@ -35,6 +38,14 @@ export interface ServerToClientEvents {
   'map:updated': (payload: { map: Map; x: number; y: number; zoom: number }) => void;
   /** Lista de mapas da sala (Feature #3 — enviado após upload/activate/delete/rename). */
   'maps:list': (payload: { maps: Map[] }) => void;
+  /** Token criado (broadcast inclui o autor). */
+  'token:created': (payload: { token: MapToken }) => void;
+  /** Token movido (broadcast NÃO inclui o autor — ele já moveu otimista). */
+  'token:moved': (payload: { tokenId: string; x: number; y: number; by: string }) => void;
+  /** Token removido. */
+  'token:removed': (payload: { tokenId: string }) => void;
+  /** Turno ativo mudou. `currentTurnUserId = null` significa "sem turno". */
+  'turn:changed': (payload: { currentTurnUserId: string | null; by?: string }) => void;
   error: (payload: { code: string; message: string }) => void;
 }
 
@@ -55,4 +66,8 @@ export interface RoomState {
   activeMap: Map | null;
   /** Lista completa de mapas da sala (Feature #3 — mapas múltiplos). */
   maps: Map[];
+  /** Tokens da sala (todos os mapas). O cliente filtra pelo mapId ativo. */
+  tokens: MapToken[];
+  /** UUID do user com o turno ativo; null = sem turno. */
+  currentTurnUserId: string | null;
 }
