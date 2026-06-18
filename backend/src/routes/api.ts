@@ -14,6 +14,7 @@ import { messageRouter } from '../controllers/message.controller.js';
 import { diceHistoryRouter } from '../controllers/dice.controller.js';
 import { sheetRouter } from '../controllers/sheet.controller.js';
 import { mapRouter } from '../controllers/map.controller.js';
+import { mapTokenRouter } from '../controllers/mapToken.controller.js';
 
 export const apiRouter = Router();
 
@@ -23,4 +24,5 @@ apiRouter.use('/rooms', messageRouter);
 apiRouter.use('/rooms', diceHistoryRouter);
 apiRouter.use('/rooms', sheetRouter);
 apiRouter.use('/rooms', mapRouter);
+apiRouter.use('/rooms', mapTokenRouter);
 apiRouter.use('/', sheetRouter); // PATCH /api/characters/:id

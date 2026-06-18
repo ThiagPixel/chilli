@@ -1,0 +1,31 @@
+name: Deploy prod
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy para produção
+    runs-on: ubuntu-latest
+    environment: production   # exige aprovação manual configurada no GitHub
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /srv/chilli/app
+            git fetch origin
+            git checkout main
+            git pull --ff-only origin main
+            ./scripts/deploy.sh prod
+            sleep 5
+            curl -kf https://localhost/api/health

@@ -2,8 +2,9 @@
  * MapView — aba "Mapa" da sala.
  *
  * Estrutura:
- *   - Mestre (isMaster): dropzone + lista de mapas + canvas.
- *   - Jogador: só o canvas.
+ *   - Mestre (isMaster): dropzone + lista de mapas + canvas + add token
+ *     + indicador de turno.
+ *   - Jogador: canvas + indicador de turno.
  *
  * O mapa ativo vem de `useMapStore.active` (populado por `room:state` /
  * `map:updated` ou pelo upload). O mestre pode subir uma nova imagem
@@ -13,19 +14,36 @@
  * A lista de mapas (`MapListPanel`) é exibida apenas para o mestre e
  * reflete o estado global (realtime via `maps:list`).
  *
+ * Turno:
+ *   - Topo do mapa: chip "Vez de {nome}" (todos veem).
+ *   - Mestre: botão "Encerrar turno" no chip.
+ *   - Mestre: botão flutuante "Adicionar token" sobre o canvas.
+ *
  * Pull-to-refresh: re-busca o mapa ativo do servidor (defesa contra race
  * conditions e reconexões).
  */
 import { useCallback, useState } from 'react';
-import { Box, Stack, Typography } from '@mui/material';
+import {
+  Box,
+  Button,
+  Chip,
+  Stack,
+  Tooltip,
+  Typography,
+} from '@mui/material';
+import PersonIcon from '@mui/icons-material/Person';
+import AddIcon from '@mui/icons-material/Add';
 import { MapCanvas } from './MapCanvas';
 import { MapUploader } from './MapUploader';
 import { MapListPanel } from './MapListPanel';
 import { useMapStore } from '@/stores/map.store';
+import { usePlayersStore } from '@/stores/players.store';
+import { useTurnStore } from '@/stores/turn.store';
 import { useSocketContext } from '@/contexts/SocketContext';
-import { mapService } from '@/services';
+import { mapService, mapTokenService } from '@/services';
 import { useToast } from '@/hooks/useToast';
 import { RefreshableScroller } from '@/components/ui';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface MapViewProps {
   roomCode: string;
@@ -38,18 +56,24 @@ export function MapView({ roomCode, isMaster }: MapViewProps) {
   const upsertMap = useMapStore((s) => s.upsertMap);
   const setActiveKeepView = useMapStore((s) => s.setActiveKeepView);
   const setView = useMapStore((s) => s.setView);
+  const currentTurnUserId = useTurnStore((s) => s.currentTurnUserId);
+  const members = usePlayersStore((s) => s.members);
   const { socket } = useSocketContext();
   const toast = useToast();
+  const { user } = useAuth();
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [isAddingToken, setIsAddingToken] = useState<boolean>(false);
+
+  const turnHolder = currentTurnUserId
+    ? members.find((m) => m.user.id === currentTurnUserId)?.user ?? null
+    : null;
+  const viewerIsTurnHolder = user !== null && user.id === currentTurnUserId;
 
   const handleUpload = async (file: File): Promise<void> => {
     setIsUploading(true);
     try {
-      // Nome default = nome do arquivo sem extensão.
       const defaultName = file.name.replace(/\.[^.]+$/, '').slice(0, 100) || 'Mapa';
       const map = await mapService.upload(roomCode, file, defaultName);
-      // Update otimista: o `maps:list` do servidor é a fonte de verdade,
-      // mas inserimos já para feedback instantâneo.
       upsertMap(map);
       if (map.isActive) {
         setView({ x: 0, y: 0, zoom: 1 });
@@ -68,9 +92,6 @@ export function MapView({ roomCode, isMaster }: MapViewProps) {
     try {
       const fresh = await mapService.list(roomCode);
       const current = fresh.find((m) => m.isActive) ?? null;
-      // Refresh preserva a viewport do usuário. Atualiza também a lista
-      // para resincronizar com o servidor (caso algum maps:list tenha
-      // se perdido).
       useMapStore.getState().setMaps(fresh);
       setActiveKeepView(current);
     } catch (err) {
@@ -79,8 +100,53 @@ export function MapView({ roomCode, isMaster }: MapViewProps) {
     }
   }, [roomCode, setActiveKeepView, toast]);
 
+  const endTurn = (): void => {
+    socket.emit('turn:end', {});
+  };
+
+  const handleAddToken = async (): Promise<void> => {
+    if (!active) {
+      toast.error('Selecione um mapa ativo para adicionar tokens.');
+      return;
+    }
+    setIsAddingToken(true);
+    try {
+      // Token default = NPC genérico, posição centro do canvas (0,0
+      // em image-space = canto superior-esquerdo da imagem).
+      await mapTokenService.create(roomCode, active.id, {
+        label: 'N',
+        color: '#e53935',
+        x: 0,
+        y: 0,
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Falha ao criar token';
+      toast.error(message);
+    } finally {
+      setIsAddingToken(false);
+    }
+  };
+
   return (
     <Stack sx={{ flex: 1, minHeight: 0 }} spacing={2}>
+      {/* Indicador de turno (sempre visível, quando há turno). */}
+      {turnHolder ? (
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <Chip
+            icon={<PersonIcon />}
+            label={`Vez de ${turnHolder.name}`}
+            color={viewerIsTurnHolder ? 'primary' : 'default'}
+            variant={viewerIsTurnHolder ? 'filled' : 'outlined'}
+            sx={{ fontWeight: 600 }}
+          />
+          {isMaster ? (
+            <Button size="small" variant="text" onClick={endTurn}>
+              Encerrar turno
+            </Button>
+          ) : null}
+        </Stack>
+      ) : null}
+
       {isMaster ? (
         <Box>
           <Typography variant="overline" color="text.secondary">
@@ -100,13 +166,32 @@ export function MapView({ roomCode, isMaster }: MapViewProps) {
         </Box>
       ) : null}
 
-      <RefreshableScroller
-        onRefresh={refresh}
-        refreshLabel="Atualizar mapa"
-        contentSx={{ display: 'flex' }}
-      >
-        <MapCanvas map={active} />
-      </RefreshableScroller>
+      <Box sx={{ position: 'relative', flex: 1, minHeight: 0 }}>
+        <RefreshableScroller
+          onRefresh={refresh}
+          refreshLabel="Atualizar mapa"
+          contentSx={{ display: 'flex' }}
+        >
+          <MapCanvas map={active} />
+        </RefreshableScroller>
+
+        {/* Botão flutuante de adicionar token (mestre only). */}
+        {isMaster && active ? (
+          <Tooltip title="Adicionar token NPC" placement="left">
+            <Box sx={{ position: 'absolute', right: 8, top: 8, zIndex: 2 }}>
+              <Button
+                size="small"
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleAddToken}
+                disabled={isAddingToken}
+              >
+                Token
+              </Button>
+            </Box>
+          </Tooltip>
+        ) : null}
+      </Box>
     </Stack>
   );
 }

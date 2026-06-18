@@ -2,8 +2,8 @@
  * Construtor do `RoomState` entregue no `room:join` e no `room:state`.
  *
  * Centraliza a leitura paralela das várias fontes (sala, membros,
- * mensagens, rolagens, mapas) para que `room:join` e `room:state`
- * (broadcast) emitam sempre o mesmo shape.
+ * mensagens, rolagens, mapas, tokens, turno) para que `room:join` e
+ * `room:state` (broadcast) emitam sempre o mesmo shape.
  */
 import type { Pool } from 'pg';
 import { getPool } from '../database/connection.js';
@@ -13,6 +13,7 @@ import { findUserById } from '../database/repositories/user.repo.js';
 import { getRecentMessages } from '../services/message.service.js';
 import { getRecentRolls } from '../services/dice.history.service.js';
 import { getActiveMap, listRoomMaps } from '../services/map.service.js';
+import { listRoomTokens } from '../services/mapToken.service.js';
 import { getRoomView } from './state.js';
 import type { RoomState } from '../types/socket-events.js';
 
@@ -22,12 +23,13 @@ export async function buildRoomState(pool: Pool, roomCode: string): Promise<Room
   const room = await findRoomByCode(pool, roomCode);
   if (!room) throw new Error('Sala não encontrada');
 
-  const [members, recentMessagesDesc, recentRolls, activeMap, maps] = await Promise.all([
+  const [members, recentMessagesDesc, recentRolls, activeMap, maps, tokens] = await Promise.all([
     listActiveMembers(pool, room.id),
     getRecentMessages(pool, room.id, { limit: HISTORY_LIMIT }),
     getRecentRolls(pool, room.id, { limit: HISTORY_LIMIT }),
     getActiveMap(pool, room.id),
     listRoomMaps(pool, room.id),
+    listRoomTokens(pool, room.id),
   ]);
 
   // Resolve os User de cada membro em paralelo.
@@ -56,6 +58,8 @@ export async function buildRoomState(pool: Pool, roomCode: string): Promise<Room
     recentRolls,
     activeMap,
     maps,
+    tokens,
+    currentTurnUserId: room.currentTurnUserId,
   };
 }
 

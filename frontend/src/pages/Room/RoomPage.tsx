@@ -11,6 +11,8 @@
  */
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useAuth } from '@/hooks/useAuth';
+import { useRoom } from '@/hooks/useRoom';
 import { BottomNav, useRoomTabFromUrl } from '@/components/layout';
 import { ChatPanel } from '@/components/chat';
 import { DiceRoller, DiceHistoryFab, DiceHistorySidebar } from '@/components/dice';
@@ -23,6 +25,7 @@ import { Box } from '@mui/material';
 function renderTab(
   tab: string,
   code: string,
+  isMaster: boolean,
   onOpenSheet?: (userId: string) => void,
 ) {
   switch (tab) {
@@ -31,7 +34,7 @@ function renderTab(
     case 'dice':
       return <DiceRoller roomCode={code} />;
     case 'map':
-      return <MapView roomCode={code} isMaster={false} />;
+      return <MapView roomCode={code} isMaster={isMaster} />;
     case 'players':
       return <PlayerList {...(onOpenSheet ? { onOpenSheet } : {})} />;
     case 'sheet':
@@ -46,6 +49,9 @@ export function RoomPage() {
   const navigate = useNavigate();
   const isDesktop = useMediaQuery((t) => t.breakpoints.up('md'));
   const [tab, setTab] = useRoomTabFromUrl();
+  const { user } = useAuth();
+  const { room } = useRoom();
+  const isMaster = Boolean(user && room && user.id === room.masterId);
 
   const openSheet = () => {
     const p = new URLSearchParams(location.search);
@@ -73,7 +79,7 @@ export function RoomPage() {
         }}
       >
         <Box sx={{ flex: 1, display: 'flex', minHeight: 0 }}>
-          {renderTab(tab, code, tab === 'players' ? openSheet : undefined)}
+          {renderTab(tab, code, isMaster, tab === 'players' ? openSheet : undefined)}
         </Box>
         {isDesktop ? null : <BottomNav active={tab} onChange={setTab} />}
       </Box>

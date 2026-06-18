@@ -33,6 +33,10 @@ export interface Room {
   description: string | null;
   masterId: string;
   status: RoomStatus;
+  /** UUID do user com o turno ativo; null = sem turno. */
+  currentTurnUserId: string | null;
+  /** Início do turno atual; null = sem turno. */
+  currentTurnStartedAt: string | null;
   createdAt: string;
   updatedAt: string;
   closedAt: string | null;
@@ -100,6 +104,30 @@ export interface RoomMap {
   width: number | null;
   height: number | null;
   isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// =========================================================================
+// MapToken — marcador arrastável sobre o mapa
+// =========================================================================
+export interface MapToken {
+  id: string;
+  mapId: string;
+  roomId: string;
+  /** 1-3 letras exibidas no centro do círculo. */
+  label: string;
+  /** Cor do token em hex (#RRGGBB). */
+  color: string;
+  /** Coordenada X no image-space (pixels da imagem, sem pan/zoom). */
+  x: number;
+  /** Coordenada Y no image-space. */
+  y: number;
+  /**
+   * User que pode mover este token. NULL = NPC (mestre-only).
+   * Mestre sempre pode mover qualquer token, mesmo que não seja o dono.
+   */
+  controllerUserId: string | null;
   createdAt: string;
   updatedAt: string;
 }

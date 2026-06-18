@@ -24,6 +24,7 @@ import { useState, type ReactNode } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { TopBar } from './TopBar';
 import { Drawer } from './Drawer';
+import { RoomTabsBar } from './RoomTabsBar';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { getTitleForPath } from '@/routes/paths';
 import { ConnectionBanner } from '@/components/ui';
@@ -67,6 +68,8 @@ export function AppShell({ children }: AppShellProps) {
       >
         {/* Espaçador para o AppBar sticky (Toolbar = 56px + safe-area). */}
         <Toolbar sx={{ minHeight: 'calc(56px + env(safe-area-inset-top)) !important' }} />
+        {/* Sub-nav de abas da sala (apenas desktop + /r/*). Sticky abaixo do TopBar. */}
+        <RoomTabsBar />
         <Box
           sx={{
             flex: 1,

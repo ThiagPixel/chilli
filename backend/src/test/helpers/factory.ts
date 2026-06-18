@@ -13,6 +13,7 @@ import type {
   DiceRoll,
   Character,
   Map as RoomMap,
+  MapToken,
 } from '../../types/domain.js';
 
 let counter = 0;
@@ -42,6 +43,8 @@ export function makeRoom(overrides: Partial<Room> = {}): Room {
     description: overrides.description ?? null,
     masterId: overrides.masterId ?? randomUUID(),
     status: overrides.status ?? 'active',
+    currentTurnUserId: overrides.currentTurnUserId ?? null,
+    currentTurnStartedAt: overrides.currentTurnStartedAt ?? null,
     createdAt: overrides.createdAt ?? now,
     updatedAt: overrides.updatedAt ?? now,
     closedAt: overrides.closedAt ?? null,
@@ -106,6 +109,22 @@ export function makeMap(overrides: Partial<RoomMap> = {}): RoomMap {
     width: overrides.width ?? 1920,
     height: overrides.height ?? 1080,
     isActive: overrides.isActive ?? false,
+    createdAt: overrides.createdAt ?? now,
+    updatedAt: overrides.updatedAt ?? now,
+  };
+}
+
+export function makeMapToken(overrides: Partial<MapToken> = {}): MapToken {
+  const now = new Date();
+  return {
+    id: overrides.id ?? randomUUID(),
+    mapId: overrides.mapId ?? randomUUID(),
+    roomId: overrides.roomId ?? randomUUID(),
+    label: overrides.label ?? 'N',
+    color: overrides.color ?? '#e53935',
+    x: overrides.x ?? 0,
+    y: overrides.y ?? 0,
+    controllerUserId: overrides.controllerUserId ?? null,
     createdAt: overrides.createdAt ?? now,
     updatedAt: overrides.updatedAt ?? now,
   };

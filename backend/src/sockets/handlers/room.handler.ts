@@ -11,7 +11,10 @@
  *   - Em disconnect, broadcast leave + mensagem de sistema "X saiu".
  */
 import type { Server, Socket } from 'socket.io';
-import { findRoomByCode } from '../../database/repositories/room.repo.js';
+import {
+  findRoomByCode,
+  clearTurnIfOwner,
+} from '../../database/repositories/room.repo.js';
 import { findActiveMember } from '../../database/repositories/roomMember.repo.js';
 import { findUserById } from '../../database/repositories/user.repo.js';
 import { getUserId } from '../auth.js';
@@ -114,6 +117,20 @@ async function handleLeave(
 
   // Broadcast leave imediatamente.
   socket.to(code).emit('room:user_left', { userId });
+
+  // Auto-clear do turno: se o user que saiu tinha o turno, zera e avisa.
+  try {
+    const p = pool();
+    const room = await findRoomByCode(p, code);
+    if (room) {
+      const cleared = await clearTurnIfOwner(p, room.id, userId);
+      if (cleared) {
+        io.to(code).emit('turn:changed', { currentTurnUserId: null });
+      }
+    }
+  } catch (err) {
+    logger.error({ err, code, userId }, 'socket.handleLeave clearTurn falhou');
+  }
 
   if (!silent) {
     try {

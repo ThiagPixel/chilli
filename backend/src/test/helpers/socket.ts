@@ -2,7 +2,9 @@
  * Helpers para testes de integração do Socket.IO.
  *
  * Sobe um `httpServer` + `attachSocketServer` numa porta aleatória
- * e devolve a URL. Cada teste deve chamar `cleanup()` no `afterEach`.
+ * e devolve a URL. Opcionalmente anexa o app Express na mesma porta
+ * (`withHttp: true`) para que os testes possam exercitar endpoints
+ * REST além dos sockets.
  */
 import { createServer, type Server as HttpServer } from 'node:http';
 import { type AddressInfo } from 'node:net';
@@ -26,8 +28,34 @@ export interface TestClient {
   waitFor: <E extends keyof ServerToClientEvents>(event: E) => Promise<Parameters<ServerToClientEvents[E]>[0]>;
 }
 
-export async function startSocketHarness(): Promise<SocketTestHarness> {
+export interface StartSocketHarnessOptions {
+  /** Se true, anexa o app Express no mesmo httpServer (REST disponível). */
+  withHttp?: boolean;
+}
+
+export async function startSocketHarness(
+  options: StartSocketHarnessOptions = {},
+): Promise<SocketTestHarness> {
   const httpServer = createServer();
+
+  if (options.withHttp) {
+    // Import dinâmico para não puxar o Express nos testes que só usam socket.
+    const { createApp } = await import('../../app.js');
+    const app = createApp();
+    // O app do Express precisa do `setIO` configurado para os broadcasts.
+    // `attachSocketServer` chama `setIO(io)` internamente, então chamamos
+    // ele DEPOIS de anexar as rotas. Mas o Express também precisa lidar
+    // com HTTP request, então o handler é o próprio `app`.
+    // Truque: redireciona todas as requests HTTP pro app, exceto as
+    // do namespace /socket.io (que o Engine.IO cuida).
+    const expressApp = app;
+    httpServer.on('request', (req, res) => {
+      // /socket.io é tratado pelo Engine.IO; pula o express.
+      if (req.url?.startsWith('/socket.io')) return;
+      expressApp(req, res);
+    });
+  }
+
   const io = attachSocketServer(httpServer);
 
   await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
