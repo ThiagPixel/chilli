@@ -95,8 +95,18 @@ if ! git show-ref --verify --quiet "refs/heads/$ENV"; then
   log "ERRO: branch local $ENV não existe. Rode 'git fetch origin && git checkout $ENV' manualmente."
   exit 1
 fi
+# Captura o hash DESTE script antes do pull. Se mudar após o pull
+# (porque alguém mergeou commits que editam deploy.sh), re-executa
+# a versão nova — caso contrário, o bash continua rodando o código
+# antigo carregado em memória.
+SELF_HASH_BEFORE=$(md5sum "$0" | cut -d' ' -f1)
 git checkout "$ENV"
 git pull --ff-only origin "$ENV"
+SELF_HASH_AFTER=$(md5sum "$0" | cut -d' ' -f1)
+if [[ "$SELF_HASH_BEFORE" != "$SELF_HASH_AFTER" ]]; then
+  log "deploy.sh mudou no pull — re-executando versão nova"
+  exec "$0" "$@"
+fi
 log "HEAD em $(git rev-parse --short HEAD) ($(git log -1 --pretty=%s))"
 
 # 2. Garante que o postgres está up.
