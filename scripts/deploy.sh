@@ -135,6 +135,19 @@ docker compose -p "chilli-$ENV" \
   --env-file "$ENV_FILE" \
   up -d --build
 
+# 4b. Restart nginx para刷新 cache de DNS dos upstreams.
+# nginx usa upstreams por nome DNS (`server backend:3000` no nginx.conf)
+# e cacheia o IP resolvido. Quando o container do backend é recriado,
+# ganha IP novo mas nginx continua mandando request pro IP antigo
+# → 502 Bad Gateway até alguém reiniciar manualmente. O container do
+# nginx NÃO é recriado pelo `up --build` (a config dele não mudou),
+# então o cache persiste. Restart invalida o cache e refaz a resolução.
+# Downtime ~2s a cada deploy — aceitável para o MVP.
+log "reiniciando nginx (flush DNS cache)..."
+docker compose -p "chilli-$ENV" \
+  -f "$COMPOSE_FILE" \
+  restart nginx
+
 # 5. Aguarda todos os serviços healthy (fail-fast se nada subiu).
 log "aguardando serviços healthy..."
 wait_healthy "chilli-$ENV" "$COMPOSE_FILE"
