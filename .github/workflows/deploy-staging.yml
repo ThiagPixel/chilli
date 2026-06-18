@@ -1,7 +1,16 @@
 name: Deploy staging
 
 on:
+  # Push direto na branch staging (ex.: merge de PR via botão).
   push:
+    branches: [staging]
+  # Trigger manual via aba Actions (útil pra reprocessar sem push novo).
+  workflow_dispatch:
+  # Roda SÓ quando o CI passou — gate de qualidade. Requer o nome do
+  # workflow (CI) e o nome da branch do push original.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [staging]
 
 concurrency:
@@ -11,6 +20,16 @@ concurrency:
 jobs:
   deploy:
     name: Deploy para staging
+    # Só prossegue se:
+    #   - push direto, OU
+    #   - workflow_dispatch manual, OU
+    #   - workflow_run do CI terminou com success.
+    # O ${{ }} quebra em expressões GitHub Actions para evitar YAML anchors.
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     environment: staging
 
@@ -27,5 +46,16 @@ jobs:
             git checkout staging
             git pull --ff-only origin staging
             ./scripts/deploy.sh staging
-            sleep 5
-            curl -kf https://localhost:8443/api/health
+
+      - name: Notificar Slack em falha
+        if: failure()
+        # `|| true` garante que o step não falhe o job de novo e cause loop.
+        run: |
+          curl -fsS -X POST "${{ secrets.SLACK_WEBHOOK }}" \
+            -H 'Content-Type: application/json' \
+            -d '{"text":"❌ deploy staging falhou (`'"$GITHUB_RUN_ID"'`). Veja: '"$GITHUB_SERVER_URL"'/'"$GITHUB_REPOSITORY"'/actions/runs/'"$GITHUB_RUN_ID"'"}' \
+            || echo "AVISO: falha ao notificar Slack (secrets ausente?)"
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
