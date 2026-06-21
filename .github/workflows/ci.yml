@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [staging, main]
+    branches: [staging, main, prod]
   push:
-    branches: [staging, main]
+    branches: [staging, main, prod]
 
 jobs:
   test:
@@ -64,6 +64,24 @@ jobs:
       - name: Type-check frontend
         working-directory: frontend
         run: npm run typecheck
+
+      - name: Gerar .env para o step de migrations
+        working-directory: backend
+        # O script `db:migrate` chama `tsx --env-file=.env`. .env é
+        # gitignored e não existe no checkout do CI; sem este step
+        # o tsx aborta com ENOENT. Criamos .env a partir das env vars
+        # inline que o job já exporta (DATABASE_URL, JWT_SECRET etc).
+        run: |
+          {
+            echo "NODE_ENV=$NODE_ENV"
+            echo "DATABASE_URL=$DATABASE_URL"
+            echo "JWT_SECRET=$JWT_SECRET"
+            echo "JWT_EXPIRES_IN=$JWT_EXPIRES_IN"
+            echo "LOG_LEVEL=$LOG_LEVEL"
+            echo "PORT=3000"
+            echo "UPLOAD_DIR=./uploads"
+            echo "MAX_UPLOAD_MB=10"
+          } > .env
 
       - name: Rodar migrations no DB de teste
         working-directory: backend

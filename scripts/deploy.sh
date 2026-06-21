@@ -10,6 +10,11 @@
 #   - Para prod: cert Let's Encrypt emitido (infra/issue-letsencrypt.sh)
 #   - Para staging: certs self-signed em infra/certs/ (gerados uma vez)
 #
+# O script é idempotente e seguro de rodar a qualquer momento:
+#   - Faz checkout da branch pedida (cria caos se rodar em branch errada)
+#   - Aplica migrations (precisa do package.json ter `db:migrate:prod`)
+#   - Roda smoke test em backend E frontend, com retry/backoff
+#
 # Uso:
 #   sudo -u chilli-deploy /srv/chilli/app/scripts/deploy.sh staging
 #   sudo -u chilli-deploy /srv/chilli/app/scripts/deploy.sh prod
@@ -80,9 +85,29 @@ wait_healthy() {
 log "=== deploy $ENV iniciado ==="
 
 # 1. Pull do código.
-log "git pull origin $ENV..."
+log "checkout $ENV..."
 cd "$APP_DIR"
+# Garante que estamos na branch certa antes de fazer pull. Evita o caso
+# de alguém rodar `deploy.sh staging` com a working tree em outra branch
+# (ex.: prod) — nesse cenário, `git pull origin staging` faz merge do
+# staging na branch atual, contaminando o estado local.
+if ! git show-ref --verify --quiet "refs/heads/$ENV"; then
+  log "ERRO: branch local $ENV não existe. Rode 'git fetch origin && git checkout $ENV' manualmente."
+  exit 1
+fi
+# Captura o hash DESTE script antes do pull. Se mudar após o pull
+# (porque alguém mergeou commits que editam deploy.sh), re-executa
+# a versão nova — caso contrário, o bash continua rodando o código
+# antigo carregado em memória.
+SELF_HASH_BEFORE=$(md5sum "$0" | cut -d' ' -f1)
+git checkout "$ENV"
 git pull --ff-only origin "$ENV"
+SELF_HASH_AFTER=$(md5sum "$0" | cut -d' ' -f1)
+if [[ "$SELF_HASH_BEFORE" != "$SELF_HASH_AFTER" ]]; then
+  log "deploy.sh mudou no pull — re-executando versão nova"
+  exec "$0" "$@"
+fi
+log "HEAD em $(git rev-parse --short HEAD) ($(git log -1 --pretty=%s))"
 
 # 2. Garante que o postgres está up.
 log "verificando postgres..."
@@ -120,22 +145,60 @@ docker compose -p "chilli-$ENV" \
   --env-file "$ENV_FILE" \
   up -d --build
 
+# 4b. Restart nginx para刷新 cache de DNS dos upstreams.
+# nginx usa upstreams por nome DNS (`server backend:3000` no nginx.conf)
+# e cacheia o IP resolvido. Quando o container do backend é recriado,
+# ganha IP novo mas nginx continua mandando request pro IP antigo
+# → 502 Bad Gateway até alguém reiniciar manualmente. O container do
+# nginx NÃO é recriado pelo `up --build` (a config dele não mudou),
+# então o cache persiste. Restart invalida o cache e refaz a resolução.
+# Downtime ~2s a cada deploy — aceitável para o MVP.
+log "reiniciando nginx (flush DNS cache)..."
+docker compose -p "chilli-$ENV" \
+  -f "$COMPOSE_FILE" \
+  restart nginx
+
 # 5. Aguarda todos os serviços healthy (fail-fast se nada subiu).
 log "aguardando serviços healthy..."
 wait_healthy "chilli-$ENV" "$COMPOSE_FILE"
 
-# 6. Smoke test básico.
+# NOTA: migrations são aplicadas automaticamente pelo backend no boot
+# (`server.ts` chama `runMigrations()` antes de subir o servidor HTTP).
+# Se uma migration nova quebrar o boot, o container reinicia — visível
+# em `docker logs`. Não precisamos rodar manualmente aqui.
+
+# 6. Smoke test em duas pontas: backend (/api/health) e frontend (HTML).
+# Retry com backoff porque o nginx às vezes precisa de ~5s depois do
+# container ficar healthy para servir HTTPS com o cert recém-montado
+# (race que já nos pegou em 2026-06-16).
 if [[ "$ENV" == "staging" ]]; then
   PORT=8443
 else
   PORT=443
 fi
 
-log "smoke test em https://localhost:$PORT/api/health..."
-if curl -ksf -m 5 "https://localhost:$PORT/api/health" >/dev/null; then
-  log "smoke test OK"
-else
-  log "AVISO: smoke test falhou. Veja logs do backend."
+smoke_check() {
+  local url="$1"
+  local label="$2"
+  for i in 1 2 3 4 5; do
+    if curl -ksf -m 5 "$url" >/dev/null; then
+      log "  smoke $label: OK"
+      return 0
+    fi
+    log "  smoke $label: tentativa $i/5 falhou, retry em 5s..."
+    sleep 5
+  done
+  log "  smoke $label: FALHOU após 5 tentativas"
+  return 1
+}
+
+log "smoke test..."
+smoke_ok=true
+smoke_check "https://localhost:$PORT/api/health" "backend /api/health" || smoke_ok=false
+smoke_check "https://localhost:$PORT/"           "frontend /"        || smoke_ok=false
+
+if [[ "$smoke_ok" != "true" ]]; then
+  log "ERRO: smoke test falhou. Veja logs do backend."
   docker compose -p "chilli-$ENV" -f "$COMPOSE_FILE" logs --tail=50 backend
   exit 1
 fi

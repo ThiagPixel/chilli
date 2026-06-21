@@ -1,7 +1,17 @@
 name: Deploy staging
 
 on:
-  push:
+  # NÃO usamos `push:` aqui — ele dispararia o deploy ANTES do CI rodar
+  # (o evento push não carrega status de CI), quebrando o gate de qualidade.
+  # O trigger correto é `workflow_run`: dispara SÓ quando o CI termina com
+  # success na branch staging. Para reprocessar ou forçar, use
+  # `workflow_dispatch` (botão "Run workflow" na aba Actions).
+  workflow_dispatch:
+  # Roda SÓ quando o CI passou — gate de qualidade. Requer o nome do
+  # workflow (CI) e o nome da branch do push original.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [staging]
 
 concurrency:
@@ -11,6 +21,13 @@ concurrency:
 jobs:
   deploy:
     name: Deploy para staging
+    # Prossegue se:
+    #   - workflow_dispatch manual, OU
+    #   - workflow_run do CI terminou com success.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     environment: staging
 
@@ -27,5 +44,16 @@ jobs:
             git checkout staging
             git pull --ff-only origin staging
             ./scripts/deploy.sh staging
-            sleep 5
-            curl -kf https://localhost:8443/api/health
+
+      - name: Notificar Slack em falha
+        if: failure()
+        # `|| true` garante que o step não falhe o job de novo e cause loop.
+        run: |
+          curl -fsS -X POST "${{ secrets.SLACK_WEBHOOK }}" \
+            -H 'Content-Type: application/json' \
+            -d '{"text":"❌ deploy staging falhou (`'"$GITHUB_RUN_ID"'`). Veja: '"$GITHUB_SERVER_URL"'/'"$GITHUB_REPOSITORY"'/actions/runs/'"$GITHUB_RUN_ID"'"}' \
+            || echo "AVISO: falha ao notificar Slack (secrets ausente?)"
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
