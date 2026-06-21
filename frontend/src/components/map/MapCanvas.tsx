@@ -11,8 +11,16 @@
  * via `socket.emit('map:state', ...)` para que outros membros
  * vejam a mesma viewport. O broadcast é debounced (80ms) para
  * evitar spam durante o arrasto.
+ *
+ * Persistência por usuário:
+ *   - `usePersistedMapView` lê/escreve a view do (roomCode, mapId) em
+ *     localStorage, então o refresh preserva a viewport individual.
+ *
+ * Tokens:
+ *   - Renderizados como filhos do wrapper transformado (acompanham o
+ *     pan/zoom sem cálculo). O `TokenPin` cuida do drag com authz.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, IconButton, Slider, Stack, Tooltip } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
@@ -20,8 +28,13 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import OpenWithIcon from '@mui/icons-material/OpenWith';
 import { useMapZoomPan, MAX_ZOOM, MIN_ZOOM } from './useMapZoomPan';
 import { useMapStore } from '@/stores/map.store';
+import { useTokensStore } from '@/stores/tokens.store';
 import { useSocketContext } from '@/contexts/SocketContext';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
+import { usePersistedMapView } from '@/hooks/usePersistedMapView';
+import { useAuth } from '@/hooks/useAuth';
+import { useRoom } from '@/hooks/useRoom';
+import { TokenPin } from './TokenPin';
 import type { RoomMap } from '@/types';
 
 export interface MapCanvasProps {
@@ -39,9 +52,21 @@ export function MapCanvas({ map }: MapCanvasProps) {
   const { zoom, setZoom, reset, setPan, x, y } = useMapZoomPan();
   const activeId = useMapStore((s) => s.active?.id ?? null);
   const { socket } = useSocketContext();
+  const { room } = useRoom();
+  const { user } = useAuth();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const [isPanning, setIsPanning] = useState<boolean>(false);
+
+  // Persiste a viewport do (roomCode, activeMapId) em localStorage.
+  usePersistedMapView(room?.code ?? '', activeId);
+
+  // Tokens do mapa ativo (filtra por mapId).
+  const allTokens = useTokensStore((s) => s.tokens);
+  const tokensForActiveMap = useMemo(
+    () => (map ? allTokens.filter((t) => t.mapId === map.id) : []),
+    [allTokens, map],
+  );
 
   // Broadcast debounced da viewport para os outros membros.
   const broadcast = useDebouncedCallback(
@@ -59,6 +84,7 @@ export function MapCanvas({ map }: MapCanvasProps) {
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (!map) return;
+      // Se o target é um TokenPin, ele já chamou stopPropagation.
       (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
       dragRef.current = {
         startX: e.clientX,
@@ -129,6 +155,10 @@ export function MapCanvas({ map }: MapCanvasProps) {
     );
   }
 
+  // Quem é o viewer? Usamos para resolver permissão de token: mestre pode
+  // mover qualquer token; jogador só pode mover o próprio.
+  const viewerIsMaster = user?.id === room?.masterId;
+
   return (
     <Box sx={{ position: 'relative', flex: 1, minHeight: 0 }}>
       <Box
@@ -173,6 +203,10 @@ export function MapCanvas({ map }: MapCanvasProps) {
               pointerEvents: 'none',
             }}
           />
+          {tokensForActiveMap.map((t) => {
+            const canMove = viewerIsMaster || (user !== null && t.controllerUserId === user.id);
+            return <TokenPin key={t.id} token={t} canMove={canMove} />;
+          })}
         </Box>
       </Box>
 

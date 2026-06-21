@@ -18,7 +18,7 @@ export const PATHS = {
  * Mantém o AppShell desacoplado do conhecimento de cada página.
  */
 export function getTitleForPath(pathname: string): { title: string; subtitle?: string } {
-  if (pathname === PATHS.home) return { title: 'Chilli', subtitle: 'O WhatsApp dos RPGs' };
+  if (pathname === PATHS.home) return { title: 'Chilli', subtitle: 'A sua mesa, do nosso jeito, à mão' };
   if (pathname.startsWith(PATHS.createRoom)) return { title: 'Criar mesa' };
   if (pathname.startsWith(PATHS.joinRoom)) return { title: 'Entrar em mesa' };
   if (pathname.startsWith('/r/')) return { title: 'Mesa', subtitle: 'Sessão em andamento' };

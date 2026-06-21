@@ -5,7 +5,9 @@
  *   - Avatar circular (com fallback da inicial).
  *   - Nome + chip de papel.
  *   - Indicador de presença (bolinha verde/cinza).
- *   - Slot `right` para ações (ex.: "abrir ficha").
+ *   - Slot `right` para ações (ex.: "abrir ficha", "iniciar turno").
+ *   - Borda primary + chip "Vez" quando `isTurnHolder` (este jogador
+ *     tem o turno ativo na mesa).
  */
 import { Box, Chip, Stack, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
@@ -15,10 +17,17 @@ export interface PlayerBadgeProps {
   user: User;
   role: RoomMember['role'];
   isOnline?: boolean;
+  isTurnHolder?: boolean;
   right?: ReactNode;
 }
 
-export function PlayerBadge({ user, role, isOnline = true, right }: PlayerBadgeProps) {
+export function PlayerBadge({
+  user,
+  role,
+  isOnline = true,
+  isTurnHolder = false,
+  right,
+}: PlayerBadgeProps) {
   const isMaster = role === 'master';
   return (
     <Stack
@@ -30,7 +39,10 @@ export function PlayerBadge({ user, role, isOnline = true, right }: PlayerBadgeP
         borderRadius: 2,
         bgcolor: 'background.paper',
         border: '1px solid',
-        borderColor: 'divider',
+        borderColor: isTurnHolder ? 'primary.main' : 'divider',
+        ...(isTurnHolder
+          ? { boxShadow: '0 0 0 2px rgba(25, 118, 210, 0.15)' }
+          : {}),
       }}
     >
       <Box sx={{ position: 'relative', flexShrink: 0 }}>
@@ -79,13 +91,24 @@ export function PlayerBadge({ user, role, isOnline = true, right }: PlayerBadgeP
         <Typography variant="body1" noWrap sx={{ fontWeight: 600 }}>
           {user.name}
         </Typography>
-        <Chip
-          label={isMaster ? 'Mestre' : 'Jogador'}
-          size="small"
-          color={isMaster ? 'primary' : 'default'}
-          variant={isMaster ? 'filled' : 'outlined'}
-          sx={{ alignSelf: 'flex-start', height: 20, fontSize: '0.7rem' }}
-        />
+        <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+          <Chip
+            label={isMaster ? 'Mestre' : 'Jogador'}
+            size="small"
+            color={isMaster ? 'primary' : 'default'}
+            variant={isMaster ? 'filled' : 'outlined'}
+            sx={{ height: 20, fontSize: '0.7rem' }}
+          />
+          {isTurnHolder ? (
+            <Chip
+              label="Vez"
+              size="small"
+              color="primary"
+              variant="filled"
+              sx={{ height: 20, fontSize: '0.7rem' }}
+            />
+          ) : null}
+        </Stack>
       </Stack>
 
       {right ? <Box sx={{ flexShrink: 0 }}>{right}</Box> : null}

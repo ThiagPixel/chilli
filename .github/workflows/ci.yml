@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [staging, main, prod]
+  push:
+    branches: [staging, main, prod]
+
+jobs:
+  test:
+    name: Lint, type-check e testes
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: chilli
+          POSTGRES_PASSWORD: chilli
+          POSTGRES_DB: chilli_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chilli"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://chilli:chilli@localhost:5432/chilli_test
+      JWT_SECRET: test-secret-must-be-at-least-32-chars-long-xxxx
+      JWT_EXPIRES_IN: 1d
+      NODE_ENV: test
+      LOG_LEVEL: silent
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar deps do backend
+        working-directory: backend
+        run: npm ci
+
+      - name: Instalar deps do frontend
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint backend
+        working-directory: backend
+        run: npm run lint
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Type-check backend
+        working-directory: backend
+        run: npm run typecheck
+
+      - name: Type-check frontend
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Gerar .env para o step de migrations
+        working-directory: backend
+        # O script `db:migrate` chama `tsx --env-file=.env`. .env é
+        # gitignored e não existe no checkout do CI; sem este step
+        # o tsx aborta com ENOENT. Criamos .env a partir das env vars
+        # inline que o job já exporta (DATABASE_URL, JWT_SECRET etc).
+        run: |
+          {
+            echo "NODE_ENV=$NODE_ENV"
+            echo "DATABASE_URL=$DATABASE_URL"
+            echo "JWT_SECRET=$JWT_SECRET"
+            echo "JWT_EXPIRES_IN=$JWT_EXPIRES_IN"
+            echo "LOG_LEVEL=$LOG_LEVEL"
+            echo "PORT=3000"
+            echo "UPLOAD_DIR=./uploads"
+            echo "MAX_UPLOAD_MB=10"
+          } > .env
+
+      - name: Rodar migrations no DB de teste
+        working-directory: backend
+        run: npm run db:migrate
+
+      - name: Testes backend
+        working-directory: backend
+        run: npm test
+
+      - name: Testes frontend
+        working-directory: frontend
+        run: npm test

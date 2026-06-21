@@ -34,8 +34,8 @@ export function createApp(): Express {
   app.use(helmet());
 
   // CORS só faz sentido em dev (frontend e backend em origens diferentes).
-  // Em prod, SPA e API ficam no mesmo origin via nginx — não precisa.
-  if (process.env['NODE_ENV'] !== 'production') {
+  // Em prod E staging, SPA e API ficam no mesmo origin via nginx — não precisa.
+  if (process.env['NODE_ENV'] === 'development') {
     app.use(corsDev);
   }
 

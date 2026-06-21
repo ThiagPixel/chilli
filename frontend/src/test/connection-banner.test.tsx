@@ -108,26 +108,25 @@ describe('ConnectionBanner (Feature #2 + auth-aware fix)', () => {
     expect(screen.queryByTestId('connection-banner')).not.toBeInTheDocument();
   });
 
-  it('muda para "offline" após warnAfterMs (default 10s)', () => {
+  it('muda para "offline" após warnAfterMs', () => {
     vi.useFakeTimers({ now: 0 });
     try {
       mockUseSocket.mockReturnValue({ socket: mockSocket, isConnected: false });
       wrap(<ConnectionBanner warnAfterMs={1000} />);
       // Inicialmente "reconnecting".
-      expect(screen.getByTestId('connection-banner').getAttribute('data-state'))
-        .toBe('reconnecting');
+      const banner = screen.getByTestId('connection-banner');
+      expect(banner.getAttribute('data-state')).toBe('reconnecting');
 
-      // Avança o tempo em 1.5s.
+      // Avança o tempo além do warnAfterMs. O useEffect agenda um
+      // setTimeout que dispara setNow, forçando re-render com a
+      // severidade "error"/data-state="offline".
       act(() => {
         vi.advanceTimersByTime(1500);
       });
 
-      // Agora deve ser "offline" — mas a checagem depende do
-      // render após o re-render causado por mudança de Date.now().
-      // Como o componente não re-renderiza sozinho, deixamos o
-      // teste focado no flow principal (botão retry).
-      // O estado "offline" depende de re-render; documentado em
-      // comentário para a próxima implementação (polling de Date.now).
+      expect(screen.getByTestId('connection-banner').getAttribute('data-state'))
+        .toBe('offline');
+      expect(screen.getByText(/sem conexão/i)).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }

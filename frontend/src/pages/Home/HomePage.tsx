@@ -39,7 +39,7 @@ export function HomePage() {
             Chilli
           </Typography>
           <Typography variant="h4" color="text.secondary" sx={{ mt: 1, fontWeight: 500 }}>
-            O WhatsApp dos RPGs
+            A sua mesa, do nosso jeito, à mão
           </Typography>
           <Typography variant="body2" color="text.disabled" sx={{ mt: 2 }}>
             Crie uma mesa em menos de 30 segundos.
