@@ -1,17 +1,18 @@
 name: Deploy prod
 
 on:
-  # Push direto na branch main (ex.: merge de PR via botão).
-  push:
-    branches: [main]
-  # Trigger manual via aba Actions (útil pra reprocessar sem push novo).
+  # NÃO usamos `push:` aqui — ele dispararia o deploy ANTES do CI rodar
+  # (o evento push não carrega status de CI), quebrando o gate de qualidade.
+  # O trigger correto é `workflow_run`: dispara SÓ quando o CI termina com
+  # success na branch prod. Para reprocessar ou forçar, use
+  # `workflow_dispatch` (botão "Run workflow" na aba Actions).
   workflow_dispatch:
   # Roda SÓ quando o CI passou — gate de qualidade. Requer o nome do
   # workflow (CI) e o nome da branch do push original.
   workflow_run:
     workflows: [CI]
     types: [completed]
-    branches: [main]
+    branches: [prod]
 
 concurrency:
   # Em prod, NUNCA cancela uma run em progresso — espera terminar.
@@ -21,12 +22,10 @@ concurrency:
 jobs:
   deploy:
     name: Deploy para produção
-    # Só prossegue se:
-    #   - push direto, OU
+    # Prossegue se:
     #   - workflow_dispatch manual, OU
     #   - workflow_run do CI terminou com success.
     if: >-
-      github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion == 'success')
@@ -43,8 +42,8 @@ jobs:
           script: |
             cd /srv/chilli/app
             git fetch origin
-            git checkout main
-            git pull --ff-only origin main
+            git checkout prod
+            git pull --ff-only origin prod
             ./scripts/deploy.sh prod
 
       - name: Notificar Slack em falha
