@@ -150,18 +150,19 @@ curl -k https://<VPS_IP>:8443/ | head -20
 ### 8. Deploy de prod
 
 ```bash
-# Promover staging → main.
+# Promover staging → prod.
 # No seu repo local:
-git checkout main
+git checkout prod
 git pull
-git merge --no-ff origin/staging -m "promote: staging → main"
-git push origin main
+git merge --no-ff origin/staging -m "promote: staging → prod"
+git push origin prod
 
-# Na VPS, fazer pull e deploy.
+# Na VPS, o CI dispara deploy-prod automaticamente após o push
+# (workflow_run gateado no sucesso do CI). Se precisar forçar:
 ssh chilli-deploy@<VPS_IP>
 cd /srv/chilli/app
-git checkout main
-git pull --ff-only origin main
+git checkout prod
+git pull --ff-only origin prod
 ./scripts/deploy.sh prod
 ```
 
@@ -206,9 +207,10 @@ cd /srv/chilli/app && git checkout staging && git pull
 
 # 3. Smoke test em https://<VPS_IP>:8443/
 
-# 4. PR: staging → main. Após merge, deploy em prod.
-cd /srv/chilli/app && git checkout main && git pull
-./scripts/deploy.sh prod
+# 4. PR: staging → prod. Após merge, CI roda e deploy-prod dispara
+#    automaticamente via workflow_run.
+cd /srv/chilli/app && git checkout prod && git pull
+./scripts/deploy.sh prod   # (manual só se precisar reprocessar)
 
 # 5. Smoke test em https://<VPS_IP>/
 ```
